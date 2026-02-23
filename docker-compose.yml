@@ -1,0 +1,248 @@
+services:
+  # 🧠 The Core (Rust AGI)
+  azera-core:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - DATABASE_URL=postgresql://root@cockroach:26257/azera?sslmode=disable
+      - QDRANT_URL=http://qdrant:6333
+      - MEILI_URL=http://meilisearch:7700
+      - MEILI_MASTER_KEY=azera_key
+      - OLLAMA_HOST=http://ollama:11434
+      - DRAGONFLY_URL=redis://dragonfly:6379
+      - XTTS_URL=http://xtts:80
+      - IMAGE_GEN_URL=http://imagegen:7860
+      - RUST_LOG=info,azera_core=debug
+    volumes:
+      - ./atelier:/app/atelier        
+      - ./archive:/app/archive        
+      - ./personas:/app/personas
+      - ./datastore/backup:/datastore/backup
+      - ./datastore/voice_samples:/voice_samples
+    depends_on:
+      cockroach:
+        condition: service_healthy
+      qdrant:
+        condition: service_started
+      dragonfly:
+        condition: service_healthy
+      meilisearch:
+        condition: service_started
+      ollama:
+        condition: service_healthy
+      ollama-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ⚡ The Speed (Cache & State Machine)
+  dragonfly:
+    image: 'docker.dragonflydb.io/dragonflydb/dragonfly:latest'
+    ulimits:
+      memlock: -1
+    ports:
+      - "6379:6379"
+    command: ["--proactor_threads=4", "--maxmemory=4GB"]
+    volumes:
+      - ./datastore/dragonfly:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "PING"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🏛️ The Memory (Persistence)
+  cockroach:
+    image: cockroachdb/cockroach:v24.1.0
+    command: start-single-node --insecure
+    ports:
+      - "26257:26257"
+      - "8080:8080"
+    volumes:
+      - ./datastore/cockroach:/cockroach/cockroach-data
+    environment:
+      - COCKROACH_DEV=true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🔮 The Wisdom (Vector DB)
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+    volumes:
+      - ./datastore/qdrant:/qdrant/storage
+    environment:
+      - QDRANT_API_KEY=azera_key
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/6333"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🔎 The Search (Text Index)
+  meilisearch:
+    image: getmeili/meilisearch:v1.7
+    environment:
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=azera_key
+    ports:
+      - "7700:7700"
+    volumes:
+      - ./datastore/meilisearch:/meili_data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🗣️ The Voice (Local LLM)
+  ollama:
+    image: ollama/ollama:latest
+    ports:
+      - "11434:11434"
+    volumes:
+      - ./datastore/ollama:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0:11434
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 🔄 Ollama Model Initialization (pulls models from ledger on startup)
+  ollama-init:
+    image: ollama/ollama:latest
+    depends_on:
+      ollama:
+        condition: service_healthy
+    volumes:
+      - ./datastore/ollama:/root/.ollama
+      - ./datastore/backup:/datastore/backup:ro
+    environment:
+      - OLLAMA_HOST=ollama:11434
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        LEDGER="/datastore/backup/ollama_ledger.json"
+        if [ -f "$$LEDGER" ]; then
+          echo "📖 Reading models from ledger..."
+          MODELS=$$(cat "$$LEDGER" | tr -d '[:space:]' | sed 's/.*"models":\[//;s/\].*//' | tr ',' '\n' | tr -d '"')
+          for MODEL in $$MODELS; do
+            echo "🔄 Pulling $$MODEL..."
+            ollama pull "$$MODEL" || echo "⚠️ Failed to pull $$MODEL"
+          done
+        else
+          echo "⚠️ No ledger found, pulling defaults..."
+          ollama pull deepseek-r1:8b
+          ollama pull nomic-embed-text
+        fi
+        echo "✅ Models ready!"
+    restart: "no"
+
+  # �️ The Voice Clone (Coqui XTTS v2)
+  xtts:
+    image: ghcr.io/coqui-ai/xtts-streaming-server:latest
+    ports:
+      - "8020:80"
+    volumes:
+      - ./datastore/xtts:/root/.local/share/tts
+      - ./datastore/voice_samples:/voice_samples
+    environment:
+      - COQUI_TOS_AGREED=1
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 10
+      start_period: 120s
+
+  # � The Canvas (Image Generation - Stable Diffusion WebUI)
+  # Pre-installed models: z-image-turbo, z-image-gguf, animagine-xl-3.1
+  imagegen:
+    build: ./imagegen
+    ports:
+      - "7860:7860"
+    volumes:
+      - ./datastore/imagegen/models:/models
+    environment:
+      - HF_HOME=/models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 1800s
+
+  # �🏗️ The Automaton (CI/CD)
+  jenkins:
+    build:
+      context: ./jenkins
+      dockerfile: Dockerfile
+    ports:
+      - "8081:8080"
+      - "50000:50000"
+    volumes:
+      - ./datastore/jenkins:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root
+    environment:
+      - JENKINS_OPTS=--httpPort=8080
+      - PROJECT_HOST_PATH=${PWD}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/login"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # 👁️ The Interface (Svelte)
+  azera-web:
+    build: 
+      context: ./frontend
+      dockerfile: Dockerfile
+    depends_on:
+      azera-core:
+        condition: service_healthy
+    environment:
+      - VITE_API_URL=http://azera-core:3000
+      - VITE_OLLAMA_HOST=http://ollama:11434
+      - NODE_ENV=production
+      - PORT=5173
+    ports:
+      - "5173:5173"
+    healthcheck:
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/5173"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+# Note: Using bind mounts to ./datastore/ for persistence
+# Data is backed up locally and survives container/volume cleanup

@@ -1,0 +1,151 @@
+/* src/routes/chat.css */
+
+/* Layout */
+/* .app-shell {
+    @apply flex h-screen bg-gemini-bg text-gray-200 overflow-hidden font-sans selection:bg-blue-500/30;
+} */
+.app-shell {
+    /* Remove h-screen and fixed width, let it fill the Layout's slot */
+    @apply flex flex-col w-full h-full bg-gemini-bg text-gray-200 overflow-hidden font-sans selection:bg-blue-500/30;
+}
+
+/* .sidebar {
+    @apply w-[280px] flex-shrink-0 bg-[#1e1f20] flex flex-col hidden md:flex border-r border-white/5 z-30;
+} */
+
+.main-content {
+    @apply flex-1 flex flex-col relative min-w-0 bg-[#131314];
+}
+
+/* Header */
+.header-bar {
+    @apply h-16 flex items-center justify-between px-4 md:px-6 z-20 absolute top-0 left-0 right-0 bg-gradient-to-b from-[#131314] to-transparent;
+}
+
+.model-selector {
+    @apply flex items-center gap-2 text-gray-200 hover:bg-white/5 px-3 py-1.5 rounded-lg transition-all;
+}
+
+.model-name {
+    @apply text-lg font-medium bg-gradient-to-r from-blue-300 to-purple-300 bg-clip-text text-transparent;
+}
+
+.model-version {
+    @apply text-gray-500 text-lg;
+}
+
+/* Chat Area */
+.chat-scroller {
+    @apply flex-1 overflow-y-auto scroll-smooth pb-40 pt-20;
+}
+
+.chat-container {
+    @apply max-w-3xl mx-auto px-4 flex flex-col gap-6;
+}
+
+.message-row {
+    @apply group flex gap-5;
+}
+
+.avatar-col {
+    @apply flex-shrink-0 mt-1;
+}
+
+.message-content {
+    @apply flex-1 min-w-0 max-w-[85%];
+}
+
+.sender-name {
+    @apply font-medium text-sm text-gray-400 mb-1.5;
+}
+
+/* Markdown & Typography */
+.markdown-body {
+    @apply text-[1.05rem] leading-7 text-gray-100 max-w-none
+           prose prose-invert prose-sm md:prose-base 
+           prose-p:my-1 prose-p:leading-7 
+           prose-headings:text-gray-100 prose-headings:my-2
+           prose-pre:bg-[#1e1f20] prose-pre:border prose-pre:border-gray-700/50
+           prose-code:text-blue-300 prose-code:bg-blue-900/20 prose-code:px-1 prose-code:rounded;
+}
+
+/* Input Area */
+.input-dock {
+    @apply absolute bottom-0 left-0 right-0 z-20;
+}
+
+.input-gradient-mask {
+    @apply h-32 bg-gradient-to-t from-[#131314] via-[#131314] to-transparent pointer-events-none;
+}
+
+.input-wrapper {
+    @apply bg-[#131314] pb-6 px-4 relative;
+}
+
+.input-container-group {
+    @apply max-w-3xl mx-auto relative;
+}
+
+.input-glow {
+    @apply absolute -inset-0.5 bg-gradient-to-r from-blue-500/50 to-purple-600/50 rounded-[32px] 
+           opacity-0 group-focus-within:opacity-100 transition-opacity duration-500 blur-[8px];
+}
+
+.input-box {
+    @apply bg-[#1e1f20] rounded-[28px] p-2 flex flex-col relative transition-colors 
+           border border-gray-700/60 shadow-sm z-10;
+}
+
+.prompt-textarea {
+    @apply w-full bg-transparent text-lg text-white placeholder-gray-500 px-4 py-3.5 
+           outline-none resize-none max-h-64 overflow-y-auto;
+}
+
+.input-actions {
+    @apply flex justify-between items-center px-2 pb-1 mt-1;
+}
+
+.send-btn {
+    @apply p-2.5 rounded-full bg-white text-black hover:bg-gray-200 
+           disabled:opacity-50 transition-all;
+}
+
+.disclaimer-text {
+    @apply text-center text-xs text-gray-500 mt-3 font-medium;
+}
+
+/* Icons & Components */
+.icon-btn-basic {
+    @apply p-2 text-gray-400 hover:text-white rounded-full hover:bg-white/10 transition-colors;
+}
+
+.action-icon-btn {
+    @apply p-2.5 rounded-full text-gray-400 hover:text-white hover:bg-[#333537] 
+           transition-all active:scale-95;
+}
+
+.user-avatar {
+    @apply w-8 h-8 rounded-full bg-gray-700/50 border border-gray-600/50 
+           flex items-center justify-center text-gray-300 overflow-hidden;
+}
+
+.ai-avatar {
+    @apply w-8 h-8 rounded-full flex items-center justify-center relative overflow-hidden 
+           border border-blue-500/20 transition-all duration-500 bg-[#1e1f20];
+}
+
+.shadow-glow {
+    box-shadow: 0 0 15px rgba(66, 133, 244, 0.4);
+}
+
+.spinner {
+    @apply w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin;
+}
+
+/* Utilities */
+.custom-scrollbar::-webkit-scrollbar { width: 6px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #444746; border-radius: 20px; }
+
+.fade-in { animation: fadeIn 0.4s cubic-bezier(0.2, 0, 0, 1); }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }

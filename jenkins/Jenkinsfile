@@ -1,0 +1,64 @@
+pipeline {
+    agent none
+
+    environment {
+        RUST_BACKTRACE = '1'
+        CARGO_TERM_COLOR = 'always'
+    }
+
+    stages {
+        stage('Backend') {
+            agent {
+                docker {
+                    image 'rust:latest'
+                    args '-v .:/workspace -v cargo-cache:/usr/local/cargo/registry'
+                }
+            }
+            steps {
+                sh '''
+                    cd /workspace/backend
+                    echo "🦀 Running Rust tests..."
+                    cargo test --no-fail-fast
+                    echo "✅ Tests passed"
+
+                    echo "🔨 Building release binary..."
+                    cargo build --release
+                    echo "✅ Release build complete"
+                '''
+            }
+        }
+
+        stage('Frontend') {
+            agent {
+                docker {
+                    image 'oven/bun:latest'
+                    args '-v .:/workspace'
+                }
+            }
+            steps {
+                sh '''
+                    cd /workspace/frontend
+                    echo "📦 Installing dependencies..."
+                    bun install
+
+                    echo "🎨 Running tests..."
+                    bun test
+                    echo "✅ Tests passed"
+
+                    echo "🔍 Running type check..."
+                    bun run check
+                    echo "✅ Type check passed"
+
+                    echo "🔨 Building production bundle..."
+                    bun run build
+                    echo "✅ Production build complete"
+                '''
+            }
+        }
+    }
+
+    post {
+        success { echo '🎉 Pipeline completed successfully!' }
+        failure { echo '❌ Pipeline failed.' }
+    }
+}

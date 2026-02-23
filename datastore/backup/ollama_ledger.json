@@ -1,0 +1,8 @@
+{
+  "models": [
+    "deepseek-r1:8b",
+    "llama3.2:latest",
+    "nomic-embed-text:latest"
+  ],
+  "last_updated": "2026-02-23T15:16:41.524269650Z"
+}

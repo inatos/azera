@@ -1,0 +1,75 @@
+[package]
+name = "azera_core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Runtime
+tokio = { version = "1.0", features = ["full"] }
+tokio-util = "0.7"
+tokio-stream = "0.1"
+
+# Web Framework
+axum = { version = "0.7", features = ["macros", "multipart"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout"] }
+hyper = "1.0"
+
+# Serialization
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+# Database
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# HTTP Client
+reqwest = { version = "0.11", features = ["json", "stream", "multipart"] }
+
+# Cache/Pub-Sub
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+
+# Logging & Tracing
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
+
+# Utilities
+uuid = { version = "1.0", features = ["v4", "serde"] }
+anyhow = "1.0"
+thiserror = "1.0"
+walkdir = "2.4"
+futures = "0.3"
+async-trait = "0.1"
+rand = "0.8"
+base64 = "0.21"
+
+# Code Sandbox
+wasmtime = "16.0"
+wasmtime-wasi = "16.0"
+
+# Web Scraping
+regex = "1.10"
+htmlescape = "0.3"
+
+# Crypto/hashing
+sha2 = "0.10"
+hex = "0.4"
+
+# Compression
+zstd = "0.13"
+tar = "0.4"
+
+# Environment
+dotenvy = "0.15"
+
+# For markdown output
+comrak = "0.19"
+
+# Build dependencies
+[build-dependencies]
+
+# Dev dependencies for testing
+[dev-dependencies]
+tokio-test = "0.4"
+tempfile = "3.10"
+pretty_assertions = "1.4"

@@ -1,0 +1,54 @@
+
+# Custom
+Ω_bak
+
+# Dev deps
+node_modules
+
+# Output
+.output
+.vercel
+.netlify
+.wrangler
+.svelte-kit/
+/build
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Vite
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# Rust
+target/
+
+# Datastore - Docker volume data (large files)
+# Keep folder structure, ignore contents
+datastore/cockroach/*
+datastore/qdrant/*
+datastore/meilisearch/*
+datastore/dragonfly/*
+datastore/ollama/*
+datastore/jenkins/*
+datastore/xtts/*
+datastore/imagegen/*
+
+# Compressed snapshots of service data
+datastore/backup/*.tar.zst
+datastore/backup/manifest.json
+
+# Don't backup generated content
+atelier/*
+archive/dreams/*
+archive/journal/*
+
+# User content
+personas/*
+!personas/_template.md
+!personas/areza.md
+!personas/azera.md
+
+# Jenkins artifacts
+frontend/build

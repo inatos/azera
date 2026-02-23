@@ -1,0 +1,37 @@
+# Ignore the Docker files
+Dockerfile*
+docker-compose*
+.dockerignore
+
+# Ignore Git files,
+.git
+.gitignore
+.gitattributes
+
+# Ignore Node modules,
+node_modules
+
+# Ignore build artifacts,
+build
+
+# Ignore environment files,
+**/.env
+.env
+
+# Ignore editor configuration files,
+.editorconfig
+.idea
+.vscode
+
+# Ignore SvelteKit specific files,
+.svelte-kit
+
+# Ignore other configuration files,
+README.md
+.npmrc
+.prettierrc
+.eslintrc.cjs
+.graphqlrc
+Makefile
+helm-charts
+coverage*

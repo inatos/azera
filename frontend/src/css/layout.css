@@ -1,0 +1,85 @@
+/* src/routes/layout.css */
+
+/* Global Shell */
+.layout-shell {
+    @apply flex flex-row h-screen w-screen bg-[#131314] text-gray-200 font-sans overflow-hidden;
+}
+
+/* Sidebar Wrapper */
+.layout-sidebar {
+    @apply w-72 bg-[#1e1f20] flex flex-col border-r border-gray-700 transition-all duration-300 flex-shrink-0;
+}
+
+/* Sidebar Components */
+.sidebar-header {
+    @apply p-4 flex items-center justify-between h-16 flex-shrink-0;
+}
+
+.brand-text {
+    @apply font-semibold tracking-wide text-xl bg-gradient-to-r from-blue-400 to-red-400 bg-clip-text text-transparent;
+}
+
+.close-btn {
+    @apply p-2 hover:bg-gray-700 rounded text-gray-400 hover:text-white transition-colors;
+}
+
+.search-area {
+    @apply px-4 mb-4 flex-shrink-0;
+}
+
+.search-input {
+    @apply w-full bg-[#2a2b2d] text-gray-200 rounded-lg px-4 py-2 text-sm 
+           placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 border border-transparent focus:border-transparent transition-all;
+}
+
+/* Prompt Library List */
+.library-container {
+    @apply flex-1 overflow-y-auto px-2 custom-scrollbar;
+}
+
+.library-heading {
+    @apply text-xs font-bold text-gray-500 uppercase px-2 mb-2 tracking-wider;
+}
+
+.group-wrapper {
+    @apply mb-4;
+}
+
+.tag-badge {
+    @apply px-2 py-1 text-blue-300 text-xs font-mono bg-blue-900/20 rounded w-fit mb-1 ml-2;
+}
+
+.prompt-item-btn {
+    @apply block w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-gray-700/50 rounded transition-colors truncate;
+}
+
+/* Sidebar Footer */
+.sidebar-footer {
+    @apply p-4 border-t border-gray-700 flex-shrink-0 bg-[#1e1f20];
+}
+
+.footer-label {
+    @apply text-xs text-gray-500 font-medium mb-1 block;
+}
+
+.model-select {
+    @apply w-full bg-[#2a2b2d] rounded p-2 text-sm text-gray-200 border border-gray-700 focus:ring-2 focus:ring-blue-500 focus:outline-none;
+}
+
+/* Main Content Area */
+.layout-main {
+    @apply flex-1 flex flex-col relative min-w-0 h-full overflow-hidden;
+}
+
+.hamburger-wrapper {
+    @apply absolute top-4 left-4 z-50;
+}
+
+.hamburger-btn {
+    @apply p-2 bg-[#2a2b2d] rounded-full shadow-lg hover:bg-gray-600 text-gray-200 transition-colors border border-gray-700;
+}
+
+/* Scrollbar Utility (if not already global) */
+.custom-scrollbar::-webkit-scrollbar { width: 5px; }
+.custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.custom-scrollbar::-webkit-scrollbar-thumb { background-color: #444746; border-radius: 20px; }

@@ -1,0 +1,40 @@
+{
+	"name": "azera-web",
+	"private": true,
+	"version": "0.0.1",
+	"type": "module",
+	"scripts": {
+		"dev": "vite dev",
+		"build": "vite build",
+		"preview": "vite preview",
+		"prepare": "svelte-kit sync || echo ''",
+		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"start": "node build",
+		"test": "bun test",
+		"test:watch": "bun test --watch"
+	},
+	"devDependencies": {
+		"@sveltejs/adapter-auto": "^6.1.1",
+		"@sveltejs/kit": "^2.49.4",
+		"@sveltejs/vite-plugin-svelte": "^6.2.4",
+		"@tailwindcss/typography": "^0.5.19",
+		"@happy-dom/global-registrator": "^18.0.1",
+		"@types/prismjs": "^1.26.5",
+		"autoprefixer": "^10.4.23",
+		"postcss": "^8.5.6",
+		"svelte": "^5.46.1",
+		"svelte-adapter-bun": "^1.0.1",
+		"svelte-check": "^4.3.5",
+		"tailwindcss": "^4.1.18",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1"
+	},
+	"dependencies": {
+		"@types/marked": "^6.0.0",
+		"marked": "^17.0.1",
+		"monaco-editor": "^0.55.1",
+		"prismjs": "^1.30.0",
+		"uuid": "^13.0.0"
+	}
+}

@@ -1,0 +1,66 @@
+:root {
+    /* Colors */
+    --bg-app: #1e1f20;
+    --bg-white: #ffffff;
+    --bg-panel: #F9FAFB; /* Gray 50 */
+    
+    --text-primary: #e8eaec; /* Gray 100 */
+    --text-secondary: #6B7280; /* Gray 500 */
+    --text-tertiary: #9CA3AF; /* Gray 400 */
+
+    --border-subtle: #E5E7EB; /* Gray 200 */
+    --border-hover: #D1D5DB;
+    
+    --accent-magenta: #e879f9;
+    
+    /* Spacing & Radius */
+    --radius-md: 0.5rem;
+    --radius-lg: 0.75rem;
+    --radius-xl: 1rem;
+    
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+    --shadow-float: 0 4px 20px -4px rgba(0,0,0,0.05);
+}
+
+body {
+    font-family: 'Satoshi', sans-serif;
+    background-color: var(--bg-app);
+    color: var(--text-primary);
+    margin: 0;
+    padding: 0;
+}
+
+/* Reset for buttons to behave like styled-components */
+button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-family: inherit;
+    padding: 0;
+}
+
+/* Global color picker styling to match dark theme */
+input[type="color"] {
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    background: transparent;
+    border: 1px solid #35393a;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 2px;
+}
+
+input[type="color"]::-webkit-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
+
+input[type="color"]::-moz-color-swatch {
+    border: none;
+    border-radius: 2px;
+}
