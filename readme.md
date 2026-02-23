@@ -2,6 +2,23 @@
 
 An emotionally intelligent chat application featuring a **three-layer cognitive architecture**, memory persistence, self-reflection, autonomous mental states, and AI voice synthesis.
 
+## Screenshots
+### "Azera" Persona (AGI Assistant, professional coder)
+![Azera](/docs/images/azera.png)
+
+### "Areza" Persona (Dungeon Master, creative storyteller)
+![Areza](/docs/images/areza.png)
+
+### Edit Persona
+![Edit Persona](/docs/images/edit-persona.png)
+![Edit Persona (profile)](/docs/images/edit-persona-profile.png)
+
+### Canvas (Image Generation)
+![Canvas](/docs/images/canvas.png)
+
+### Gallery
+![Gallery](/docs/images/gallery.png)
+
 ## Cognitive Architecture
 
 Azera's brain is a three-layer pipeline that gives it genuine context awareness, emotional memory, and cross-session continuity:
