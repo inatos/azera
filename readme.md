@@ -8,11 +8,11 @@ Azera's brain is a three-layer pipeline that gives it genuine context awareness,
 
 ```
                         ┌─────────────────────┐
-                        │     User Message     │
+                        │     User Message    │
                         └──────────┬──────────┘
                                    ▼
                     ┌──────────────────────────────┐
-                    │     Hybrid RAG Pipeline       │
+                    │     Hybrid RAG Pipeline      │
                     │                              │
                     │  ┌────────┐ ┌────────────┐   │
                     │  │ Qdrant │ │ Meilisearch│   │
@@ -21,21 +21,21 @@ Azera's brain is a three-layer pipeline that gives it genuine context awareness,
                     │  │ ≥0.45  │ │  chats     │   │
                     │  └───┬────┘ └─────┬──────┘   │
                     │      └─────┬──────┘          │
-                    │         dedup                 │
+                    │         dedup                │
                     └────────────┬─────────────────┘
                                  ▼
                     ┌──────────────────────────────┐
                     │   LLM (Ollama) + Context     │
-                    │   system prompt + memories    │
-                    │   + session context           │
+                    │   system prompt + memories   │
+                    │   + session context          │
                     └────────────┬─────────────────┘
                                  ▼
                     ┌──────────────────────────────┐
-                    │       Response Stream         │
-                    │  tokens → mood inference      │
-                    │  → Dragonfly state sync       │
-                    │  → Qdrant memory store        │
-                    │  → Meilisearch index          │
+                    │       Response Stream        │
+                    │  tokens → mood inference     │
+                    │  → Dragonfly state sync      │
+                    │  → Qdrant memory store       │
+                    │  → Meilisearch index         │
                     └──────────────────────────────┘
 ```
 
@@ -102,7 +102,7 @@ See [QUICK_START.md](QUICK_START.md) for detailed setup and API examples.
 
 ```
 ┌─────────────┐    ┌─────────────┐    ┌─────────────┐
-│  SvelteKit  │───▶│  Rust/Axum  │───▶│   Ollama    │
+│  SvelteKit  │──▶│  Rust/Axum  │───▶│   Ollama    │
 │  Frontend   │    │   Backend   │    │   (LLM)     │
 └─────────────┘    └──────┬──────┘    └─────────────┘
                           │
