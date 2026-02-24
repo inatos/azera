@@ -113,7 +113,7 @@ docker compose ps
 # API:     http://localhost:3000
 ```
 
-See [QUICK_START.md](QUICK_START.md) for detailed setup and API examples.
+See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 
 ## Architecture
 
@@ -298,7 +298,7 @@ curl -X POST http://localhost:3000/api/search \
   -d '{"query": "passphrase", "limit": 5}'
 ```
 
-## Frontend Components (23)
+## Frontend Components
 
 - **ChatInput** — Message input with model selector and send behavior
 - **ChatMessage** — Individual message rendering with thinking toggle
@@ -329,10 +329,10 @@ See [DEVELOPMENT.md](DEVELOPMENT.md) for full development guide.
 
 ## Documentation
 
-- [QUICK_START.md](QUICK_START.md) — Getting started and API examples
-- [DEVELOPMENT.md](DEVELOPMENT.md) — Development setup, testing, and architecture
-- [API.md](API.md) — Complete API reference (53 endpoints)
-- [IMPLEMENTATION_SUMMARY.md](IMPLEMENTATION_SUMMARY.md) — Technical deep-dive
+- [QUICK_START.md](/docs/QUICK_START.md) — Getting started and API examples
+- [DEVELOPMENT.md](/docs/DEVELOPMENT.md) — Development setup, testing, and architecture
+- [API.md](/docs/API.md) — Complete API reference
+- [IMPLEMENTATION_SUMMARY.md](/docs/IMPLEMENTATION_SUMMARY.md) — Technical deep-dive
 
 ## Skills Demonstrated
 
