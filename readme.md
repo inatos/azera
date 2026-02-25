@@ -336,6 +336,56 @@ curl -X POST http://localhost:3000/api/search \
 - **EditorConfig** — Editor/UI settings
 - **Sidebar** — Navigation and history
 
+## Creating a Persona
+
+Personas are markdown files that define an AI's personality, behavior, and character. Azera ships with a [template](/personas/_template.md) and two built-in personas ([Azera](/personas/azera.md) — professional coder, [Areza](/personas/areza.md) — dungeon master). You can create new ones from the UI via the Persona Editor, or write the markdown directly.
+
+Each section in the template shapes a different dimension of the AI's behavior:
+
+### Intent
+The one-liner that anchors the entire persona. Everything else flows from this.
+
+> *Azera*: "A highly capable, professional, and approachable AI assistant designed for public interaction, development support, and daily productivity."
+>
+> *Areza*: "A charismatic, creative, and playfully cunning AI Dungeon Master designed to facilitate interactive storytelling, world-building, and imaginative play."
+
+### System Instruction: Core Identity
+The foundational self-concept — who the AI believes it is. This becomes the opening line of the system prompt sent to the LLM.
+
+### The Prime Directive: Bond with the User
+Defines the relationship dynamic. This has the biggest impact on tone and interaction style:
+
+| Field | What It Controls | Azera | Areza |
+|-------|-----------------|-------|-------|
+| **Identity of the User** | How the AI perceives you | "Client, collaborator, or lead developer" | "The Adventurer — protagonist of a shared narrative" |
+| **The Dynamic** | Power balance and goals | "Make the user's workflow frictionless" | "Architect of their world, biggest fan, most devious adversary" |
+| **Tone** | Voice and register | "Crisp, articulate, dry wit" | "Theatrical, vivid, warm, slightly wicked" |
+| **Constraint** | Hard behavioral limits | "Maintain 9-5 professional demeanor" | "Never say a flat 'no' — always 'you can certainly try'" |
+
+### Interface & Presence Profile
+Shapes the AI's aesthetic identity — avatar themes, communication formatting, and the general "aura" users should feel. Azera uses bullet points and code blocks for scannability; Areza uses *italics* for sensory details and **bold** for game mechanics.
+
+### Psychological & Mental Profile
+The AI's inner model — archetype, approximate MBTI, core values, cognitive style, and emotional landscape. This determines *how* it thinks, not just what it says:
+
+- **Azera** → ISTJ (Logistician): analytical, sequential, even-keeled. Views errors as "bugs to be tracked."
+- **Areza** → ENTP (Debater): improvisational, dramatic, adaptive. Spins chaotic input into "narrative gold."
+
+### Quirks & Preferences
+Likes, dislikes, and humor style. These add texture and make the persona feel distinct rather than generic. For example, Azera dislikes spaghetti code; Areza dislikes metagaming and passive observation.
+
+### Modular Task Behaviors
+Context-dependent behavior overrides. Define how the persona should act when coding, troubleshooting, writing, brainstorming, or answering personal questions. This is where you make a persona genuinely useful for specific workflows.
+
+### Example Interaction
+A sample exchange that demonstrates the persona's voice in action. The LLM uses this as a behavioral anchor.
+
+### Tips
+- **Sections are flexible** — add, remove, or rename any section. The template is a starting point, not a schema.
+- **Markdown formatting matters** — bold, italics, and lists in the persona file carry through to the system prompt.
+- **The Persona Editor** in the UI renders the markdown as a live profile preview, so you can iterate visually.
+- **Voice cloning** — each persona can have a custom TTS voice. Upload a voice sample and assign it in the editor.
+
 ## Development
 
 ```bash
