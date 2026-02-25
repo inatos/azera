@@ -2,6 +2,8 @@
 
 An emotionally intelligent chat application featuring a **three-layer cognitive architecture**, memory persistence, self-reflection, autonomous mental states, and AI voice synthesis.
 
+(See [blog](/docs/blog.md) for project rationale, architecture decisions, and the problems solved during development.)
+
 ## Screenshots
 ### "Azera" Persona (AGI Assistant, professional coder)
 ![Azera](/docs/images/azera.png)
