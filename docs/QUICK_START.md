@@ -37,9 +37,9 @@ bun dev
 ### Chat
 ```bash
 # Stream chat (SSE)
-curl -X POST http://localhost:3000/api/chat \
+curl -N -X POST http://localhost:3000/api/chat/stream \
   -H "Content-Type: application/json" \
-  -d '{"message": "Hello!", "chat_id": "test", "model": "llama3.2"}'
+  -d '{"message": "Hello!", "chat_id": "test", "branch_id": "branch_main_test", "model": "llama3.2"}'
 
 # Get history
 curl http://localhost:3000/api/history/test
@@ -121,12 +121,12 @@ curl -X POST http://localhost:3000/api/search \
   -d '{"query": "conversation about coding", "limit": 5}'
 
 # Store memory (writes to Qdrant + Meilisearch)
-curl -X POST http://localhost:3000/api/memory \
+curl -X POST http://localhost:3000/api/memories \
   -H "Content-Type: application/json" \
   -d '{"content": "Important fact to remember", "type": "fact"}'
 ```
 
-> **Note**: The full hybrid RAG pipeline (Qdrant semantic + Meilisearch lexical) runs automatically during `POST /api/chat`. The search endpoint provides direct Qdrant access for debugging.
+> **Note**: The full hybrid RAG pipeline (Qdrant semantic + Meilisearch lexical) runs automatically during `POST /api/chat/stream`. The search endpoint provides direct Qdrant access for debugging.
 
 ### TTS (Voice Synthesis)
 ```bash

@@ -2,8 +2,6 @@
 
 Base URL: `http://localhost:3000`
 
-53 endpoints across 12 categories.
-
 ---
 
 ## Health
@@ -33,6 +31,7 @@ curl -N -X POST http://localhost:3000/api/chat/stream \
   -H "Content-Type: application/json" \
   -d '{
     "chat_id": "550e8400-e29b-41d4-a716-446655440000",
+    "branch_id": "branch_main_550e8400",
     "message": "Hello, how are you?",
     "model": "llama3.2",
     "user_persona_id": "protag",
@@ -46,7 +45,7 @@ curl -N -X POST http://localhost:3000/api/chat/stream \
 | `chat_id` | UUID | yes | Chat to send the message in |
 | `message` | string | yes | User message content |
 | `model` | string | no | Ollama model name (default: from env) |
-| `branch_id` | UUID | no | Conversation branch |
+| `branch_id` | UUID | yes | Conversation branch |
 | `user_persona_id` | string | no | User persona ID |
 | `ai_persona_id` | string | no | AI persona ID |
 

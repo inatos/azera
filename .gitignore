@@ -34,6 +34,8 @@ datastore/ollama/*
 datastore/jenkins/*
 datastore/xtts/*
 datastore/imagegen/*
+datastore/voice_samples/*
+datastore/embeddings/*
 
 # Compressed snapshots of service data
 datastore/backup/*.tar.zst

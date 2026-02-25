@@ -163,7 +163,7 @@ components/
 ### Chat & Streaming
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | /api/chat | SSE streaming chat |
+| POST | /api/chat/stream | SSE streaming chat |
 | GET | /api/history/:session_id | Get history |
 | POST | /api/clear | Clear history |
 
@@ -197,7 +197,7 @@ components/
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | /api/search | Semantic search (Qdrant) |
-| POST | /api/memory | Store embedding |
+| POST | /api/memories | Store embedding |
 
 > **Note**: The hybrid RAG pipeline (Qdrant + Meilisearch) runs automatically during chat. The search endpoint provides direct access to Qdrant for debugging.
 
@@ -215,7 +215,10 @@ components/
 - **dreams** - AI dream entries
 - **journal_entries** - AI reflections
 - **system_logs** - System events
+- **user_settings** - Editor/UI preferences (JSONB)
 - **config** - Key-value settings
+- **chat_history** - Legacy session messages
+- **logs** - Legacy log entries
 
 ### Qdrant Collections
 - **azera_memory** - Embeddings for RAG
@@ -344,10 +347,10 @@ cargo test -- --nocapture  # With stdout output
 cargo test model        # Run tests matching "model"
 ```
 
-**`models.rs`** — 17 tests covering serialization roundtrips:
+**`models.rs`** — tests covering serialization roundtrips:
 - Persona, ChatMessage, Dream, VoiceConfig, StreamEvent, OllamaRequest/Response, ImageGenerationRequest, GeneratedImage, ImageGenEvent, ImageModel
 
-**`handlers.rs`** — 22 tests covering:
+**`handlers.rs`** — tests covering:
 - TTS text chunking (sentence/comma/newline splitting, char limits, content preservation)
 - WAV audio concatenation (silence padding, header size updates, multi-chunk merge)
 - Model serialization (ChatRequest defaults, StreamEvent variants, VoiceConfig, Tag roundtrip)

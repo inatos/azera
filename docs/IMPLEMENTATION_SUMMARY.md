@@ -93,9 +93,10 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 ### API Surface (53 Endpoints)
 
 **Chat Operations**
-- `POST /api/chat` - Streaming chat (SSE)
-- `GET /api/history/:session_id` - Get conversation
-- `POST /api/clear` - Clear session
+- `POST /api/chat/stream` - Streaming chat (SSE)
+- `POST /api/chat` - Legacy non-streaming chat
+- `GET /api/history/:session_id` - Get conversation (legacy)
+- `POST /api/clear` - Clear session (legacy)
 
 **Chats CRUD**
 - `GET /api/chats` - List all
@@ -115,14 +116,12 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 **Groups CRUD**
 - `GET /api/groups` - List all
 - `POST /api/groups` - Create new
-- `GET /api/groups/:id` - Get one
 - `PUT /api/groups/:id` - Update
 - `DELETE /api/groups/:id` - Delete
 
 **Tags CRUD**
 - `GET /api/tags` - List all
 - `POST /api/tags` - Create new
-- `GET /api/tags/:id` - Get one
 - `PUT /api/tags/:id` - Update
 - `DELETE /api/tags/:id` - Delete
 
@@ -220,19 +219,21 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 
 ### Svelte 5 Runes
 ```typescript
-class AppState {
+export class AppState {
     // State
-    personas = $state<Persona[]>([]);
-    selectedPersona = $state<Persona | null>(null);
-    messages = $state<Message[]>([]);
-    models = $state<Model[]>([]);
+    chats = $state<Chat[]>([]);
+    currentChatId = $state<string | null>(null);
+    aiPersonas = $state<Persona[]>([]);
+    availableModels = $state<AIModel[]>([]);
     isLoadingModels = $state(false);
-    showThinking = $state(true);      // AI reasoning blocks
-    sendOnEnter = $state(false);      // Enter vs Ctrl+Enter
-    
+    showThinking = $state(true);      // AI reasoning/thinking blocks
+    sendOnEnter = $state(false);      // false = Ctrl+Enter, true = Enter
+    mood = $state(0.5);
+    energy = $state(0.7);
+
     // Derived
-    aiPersonas = $derived(this.personas.filter(p => !p.is_user));
-    userPersonas = $derived(this.personas.filter(p => p.is_user));
+    currentChat = $derived(this.chats.find(c => c.id === this.currentChatId) || null);
+    messages = $derived(this.currentBranch()?.messages || []);
 }
 ```
 
@@ -251,65 +252,76 @@ class AppState {
 ### Personas Table
 ```sql
 CREATE TABLE personas (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    name VARCHAR(255) NOT NULL,
-    type VARCHAR(50),
-    avatar_url TEXT,
-    model VARCHAR(255),
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    persona_type TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    avatar TEXT,
+    bubble_color TEXT,
     system_prompt TEXT,
-    voice TEXT,
-    is_user BOOLEAN DEFAULT false,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+    global_memory_enabled BOOLEAN DEFAULT TRUE,
+    voice JSONB,
+    metadata JSONB DEFAULT '{}',
+    tags JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ### Chats Table
 ```sql
 CREATE TABLE chats (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    title VARCHAR(255),
-    ai_persona_id UUID REFERENCES personas(id),
-    user_persona_id UUID REFERENCES personas(id),
-    group_id UUID,
-    created_at TIMESTAMPTZ DEFAULT now(),
-    updated_at TIMESTAMPTZ DEFAULT now()
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    current_branch_id TEXT NOT NULL,
+    group_id TEXT REFERENCES chat_groups(id) ON DELETE SET NULL,
+    tags JSONB DEFAULT '[]',
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ### Messages Table
 ```sql
 CREATE TABLE chat_messages (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    chat_id UUID REFERENCES chats(id),
-    branch_id UUID,
-    role VARCHAR(50),
-    content TEXT,
-    parent_id UUID,
-    model VARCHAR(255),
-    created_at TIMESTAMPTZ DEFAULT now()
+    id TEXT PRIMARY KEY,
+    branch_id TEXT NOT NULL REFERENCES chat_branches(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    content TEXT NOT NULL,
+    user_persona_id TEXT,
+    ai_persona_id TEXT,
+    model TEXT,
+    mood TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ### Dreams Table
 ```sql
 CREATE TABLE dreams (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content TEXT,
-    emotion VARCHAR(100),
-    themes TEXT[],
-    created_at TIMESTAMPTZ DEFAULT now()
+    id TEXT PRIMARY KEY,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    mood TEXT,
+    persona_id TEXT,
+    persona_name TEXT,
+    tags TEXT[],
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
 ### Journal Entries
 ```sql
 CREATE TABLE journal_entries (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content TEXT,
-    mood VARCHAR(100),
-    insights TEXT[],
-    created_at TIMESTAMPTZ DEFAULT now()
+    id TEXT PRIMARY KEY,
+    date TEXT NOT NULL,
+    title TEXT NOT NULL,
+    content TEXT NOT NULL,
+    mood TEXT,
+    persona_id TEXT,
+    persona_name TEXT,
+    tags TEXT[],
+    created_at TIMESTAMPTZ DEFAULT NOW()
 );
 ```
 
@@ -351,4 +363,4 @@ Automated backups every 5 minutes:
 - DragonflyDB RDB
 - Ollama model ledger
 
-Location: `logs/backups/`
+Location: `datastore/backup/`

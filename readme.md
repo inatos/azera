@@ -156,12 +156,12 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 | Image Gen | Diffusers + Animagine XL 3.1 |
 | CI/CD | Jenkins |
 
-### Services (11 Docker Containers)
+### Services (Dockerized)
 
 | Service | Port | Purpose |
 |---------|------|---------|
-| azera-core | 3000 | Rust/Axum backend (53 endpoints) |
-| azera-web | 5173 | SvelteKit frontend (23 components) |
+| azera-core | 3000 | Rust/Axum backend |
+| azera-web | 5173 | SvelteKit frontend |
 | CockroachDB | 26257 | Primary persistent storage |
 | DragonflyDB | 6379 | Working memory / attention buffer |
 | Qdrant | 6333 | Semantic vector memory (RAG) |
@@ -176,49 +176,71 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 
 ### Hybrid RAG Pipeline
 ```rust
-// 1. Semantic search — Qdrant vector similarity (excludes current chat)
-let qdrant_results = search_memories_with_filter_cached(
-    &qdrant, &redis, &query, 10,
-    Filter::must_not(vec![FieldCondition::match_keyword("chat_id", current_chat_id)])
+// 1. Semantic search — Qdrant vector similarity (excludes current chat, filtered by persona)
+let filter = json!({
+    "must": [{ "key": "ai_persona_id", "match": { "value": ai_persona_id } }],
+    "must_not": [{ "key": "chat_id", "match": { "value": chat_id } }]
+});
+let semantic_results = search_memories_with_filter_cached(
+    &vector_service, &ollama_host, &cache, "azera_memory", &message, 10, Some(filter),
 ).await?;
 
 // 2. Lexical search — Meilisearch across memories + chats (filtered by persona)
-let meili_memories = meili_search_memories(&meili, &user_message, None, ai_persona_id, 10).await;
-let meili_chats = meili_search_chats_for_rag(&meili, &user_message, ai_persona_id, 5).await;
+let lexical_results = meili_search_memories(&meili_url, &meili_key, &message, None, ai_persona_id, 10).await;
+let lexical_chats = meili_search_chats_for_rag(&meili_url, &meili_key, &message, ai_persona_id, 5).await;
 
-// 3. Merge, deduplicate, inject as LLM context
-let context = merge_and_dedup(qdrant_results, meili_memories, meili_chats);
+// 3. Merge & deduplicate — inline with quality filters
+let mut seen_content = HashSet::new();
+for r in &semantic_results {
+    if r.score < 0.45 { continue; }            // drop low-similarity
+    // skip memories < 60s old, truncate to 400 chars, dedup by first 100 chars
+}
+for hit in &lexical_results { /* same dedup for dreams/journal/facts */ }
+for hit in &lexical_chats   { /* skip current chat, dedup chat snippets */ }
 ```
 
 ### Streaming Chat with Mood Sync
 ```rust
-// Stream tokens → infer mood → sync to Dragonfly → emit Done with state
-StreamEvent::Done {
-    message_id, mood: Some("excited".into()),
-    mood_value: Some(0.85), energy: Some(0.72),
-}
+// Infer mood from response → sync to Dragonfly → emit Done with latest state
+let mood = llm.infer_mood(&model, &full_response).await?;
+let _ = CacheService::update_mood(&cache, mood_value, &mood, -0.03).await;
+
+let (done_mood_value, done_energy) = CacheService::get_mental_state(&cache).await?;
+let _ = tx.send(StreamEvent::Done {
+    message_id, mood: Some(mood),
+    mood_value: done_mood_value, energy: done_energy,
+}).await;
 ```
 
 ### Embedding Cache (Dragonfly)
 ```rust
-// SHA256-keyed, base64-encoded f32 vectors, 7-day TTL
-let cache_key = format!("emb:{}", sha256_hex(&text));
-if let Some(cached) = redis.get::<Vec<u8>>(&cache_key).await? {
-    return Ok(decode_f32_vec(cached));
+// SHA256-keyed (first 16 hex chars), base64-encoded f32 vectors, 7-day TTL
+fn embedding_key(text: &str) -> String {
+    let hash = hex::encode(Sha256::new().chain_update(text).finalize());
+    format!("emb:{}", &hash[..16])
 }
-let embedding = ollama.generate_embedding(&text).await?;
-redis.set_ex(&cache_key, encode_f32_vec(&embedding), 604800).await?;
+
+// Check cache → compute via Ollama on miss → store async
+if let Some(cached) = CacheService::get_cached_embedding(cache, text).await? {
+    return Ok(cached);  // cache hit
+}
+let embedding = self.generate_embedding(ollama_host, text).await?;
+tokio::spawn(async move {
+    let _ = CacheService::cache_embedding(&cache, &text, &embedding).await; // 7d TTL
+});
 ```
 
 ### Svelte 5 State (Runes)
 ```typescript
-class AppState {
-    personas = $state<Persona[]>([]);
+export class AppState {
+    chats = $state<Chat[]>([]);
+    aiPersonas = $state<Persona[]>([]);
     mood = $state(0.5);
-    energy = $state(1.0);
-    showThinking = $state(true);   // AI reasoning blocks
-    sendOnEnter = $state(false);   // Enter vs Ctrl+Enter
-    // Updated in real-time from Done event
+    energy = $state(0.7);
+    showThinking = $state(true);   // AI reasoning/thinking blocks
+    sendOnEnter = $state(false);   // false = Ctrl+Enter, true = Enter
+    currentChat = $derived(this.chats.find(c => c.id === this.currentChatId) || null);
+    // Updated in real-time from StreamEvent::Done
 }
 ```
 
@@ -325,7 +347,7 @@ cd backend && cargo test
 cd frontend && bun test
 ```
 
-See [DEVELOPMENT.md](DEVELOPMENT.md) for full development guide.
+See [DEVELOPMENT.md](/docs/DEVELOPMENT.md) for full development guide.
 
 ## Documentation
 

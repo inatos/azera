@@ -1946,7 +1946,7 @@ pub async fn search_memories(
         }
     });
 
-    // 1️⃣ Qdrant — semantic search (with embedding cache)
+    // Qdrant — semantic search (with embedding cache)
     let semantic_results = match vector::search_memories_cached(
         &state.vector,
         &state.ollama_host,
@@ -1963,13 +1963,13 @@ pub async fn search_memories(
         }
     };
 
-    // 2️⃣ Meilisearch — lexical search
+    // Meilisearch — lexical search
     let meili_type = payload.memory_type.as_deref();
     let lexical_results = meili_search_memories(
         &state.meili_url, &state.meili_key, &payload.query, meili_type, None, payload.limit
     ).await;
 
-    // 3️⃣ Merge results, semantic first, then lexical (deduped)
+    // Merge results, semantic first, then lexical (deduped)
     let mut items: Vec<serde_json::Value> = Vec::new();
     let mut seen_ids = std::collections::HashSet::new();
 
