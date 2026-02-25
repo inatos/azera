@@ -263,7 +263,7 @@ export class AppState {
 | Dream/Journal Search | GET /api/dreams/search?q=, /api/journal/search?q= |
 | Persona Template | GET /api/personas/template |
 
-See [API.md](API.md) for full endpoint reference with examples.
+See [API.md](/docs/API.md) for full endpoint reference with examples.
 
 ## Testing the Cognitive Pipeline
 
