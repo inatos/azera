@@ -380,6 +380,16 @@ Context-dependent behavior overrides. Define how the persona should act when cod
 ### Example Interaction
 A sample exchange that demonstrates the persona's voice in action. The LLM uses this as a behavioral anchor.
 
+### AI Personas vs User Personas
+
+Azera distinguishes between two persona types that work together in every conversation:
+
+**AI Personas** define the assistant's personality — system prompt, voice, avatar, behavior. When you switch AI personas, the entire character of the response changes. Each AI persona maintains isolated memory: Azera's memories don't bleed into Areza's conversations, and vice versa (enforced by `ai_persona_id` filtering in the RAG pipeline).
+
+**User Personas** represent *you*. The default is **Protag** (⚡), but you can create others to adopt different roles. A user persona controls your display name, avatar, and chat bubble color. This is useful when you want to roleplay as a specific character (e.g., a player character in Areza's campaigns) or simply distinguish between contexts (work vs personal).
+
+Every chat message carries both a `user_persona_id` and an `ai_persona_id`, so the system always knows who's talking to whom. You select both in the chat UI — the AI persona from the sidebar, and the user persona from the input area.
+
 ### Tips
 - **Sections are flexible** — add, remove, or rename any section. The template is a starting point, not a schema.
 - **Markdown formatting matters** — bold, italics, and lists in the persona file carry through to the system prompt.
