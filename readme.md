@@ -94,6 +94,7 @@ Each chat maintains its own context. The RAG pipeline:
 - **Mental State** — Mood, energy, and focus simulation with real-time UI sync
 - **Dreams & Journal** — Autonomous reflection and creative processing (dual-written to Qdrant + Meilisearch)
 - **Model Manager** — Pull and delete Ollama models from the UI (embedding models hidden)
+- **Tags & Groups** — Custom color-coded tags for chats and personas, collapsible chat groups for organization
 - **Conversation Branching** — Fork and explore conversation paths
 - **Canvas** — Dedicated image generation workspace with gallery
 - **User Preferences** — Show Thinking toggle, Send on Enter toggle, persisted to localStorage
