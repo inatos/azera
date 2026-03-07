@@ -151,6 +151,26 @@ curl http://localhost:3000/api/images
 curl -X DELETE http://localhost:3000/api/images/{filename}
 ```
 
+### 3D Model Generation
+```bash
+# Generate 3D model from a reference image (SSE stream with progress + completion)
+# Hunyuan3D 2.1 is image-conditioned — provide image_base64 or image_url
+curl -N -X POST http://localhost:3000/api/models3d/generate \
+  -H "Content-Type: application/json" \
+  -d '{"image_url": "https://example.com/reference.png", "steps": 50, "output_format": "glb"}'
+
+# Or with text only (auto-generates reference image via imagegen)
+curl -N -X POST http://localhost:3000/api/models3d/generate \
+  -H "Content-Type: application/json" \
+  -d '{"prompt": "a medieval sword", "steps": 50, "output_format": "glb"}'
+
+# List generated 3D models
+curl http://localhost:3000/api/models3d
+
+# Delete 3D model
+curl -X DELETE http://localhost:3000/api/models3d/{filename}
+```
+
 ### Settings
 ```bash
 # Get all settings
@@ -201,6 +221,16 @@ OLLAMA_HOST=http://localhost:11434
 MEILI_URL=http://localhost:7700
 RUST_LOG=info,azera_core=debug
 IMAGE_GEN_URL=http://imagegen:7860
+GEN3D_URL=http://gen3d:7861
+ENABLE_3D=true              # Feature flag: set to false to disable 3D generation UI
+
+# Gen3D service environment (set in docker-compose.yml)
+LOW_VRAM_MODE=true          # Sequential CPU↔GPU offloading (fits ≤16 GB VRAM)
+ENABLE_COMPILE=true         # torch.compile with inductor backend
+DISABLE_TEX=false           # Enable PBR texture generation
+TEXTURE_RESOLUTION=512      # Texture rendering resolution (default: 512)
+TEXTURE_VIEWS=4             # Number of texture painting views (default: 4)
+IMAGE_GEN_URL=http://imagegen:7860  # For text-to-image bridge
 ```
 
 ## Troubleshooting
@@ -251,6 +281,20 @@ curl http://localhost:7860/sdapi/v1/progress
 
 # imagegen requires NVIDIA GPU with CUDA
 # First generation is slow while model loads to VRAM
+```
+
+### 3D generation not working
+```bash
+# Check gen3d service
+curl http://localhost:7861/
+
+# Check progress endpoint
+curl http://localhost:7861/api/v1/progress
+
+# gen3d requires NVIDIA GPU with CUDA 12.4+
+# First generation is slow (~2-5 min) due to one-time torch.compile graph compilation
+# Subsequent generations reload models from volume via mmap (~30s)
+# The gen3d container auto-restarts on OOM (restart: unless-stopped)
 ```
 
 ---

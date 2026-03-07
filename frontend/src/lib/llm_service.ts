@@ -432,3 +432,131 @@ export async function checkHealth(): Promise<boolean> {
         return false;
     }
 }
+
+// ============================================================
+// 3D Model Generation
+// ============================================================
+
+export interface Generate3DRequest {
+    image_base64?: string;
+    image_url?: string;
+    steps?: number;
+    guidance_scale?: number;
+    octree_resolution?: number;
+    num_views?: number;
+    seed?: number;
+    remove_background?: boolean;
+    foreground_ratio?: number;
+    texture_size?: number;
+    output_format?: string;
+    custom_filename?: string;
+    enable_texture?: boolean;
+    persona_id?: string;
+}
+
+export interface Generated3DModel {
+    filename: string;
+    url: string;
+    prompt?: string;
+    format: string;
+    file_size: number;
+    seed?: number;
+    created_at: string;
+}
+
+export async function generate3DModel(
+    req: Generate3DRequest,
+    onProgress?: (step: number, totalSteps: number, percentage: number, status: string) => void,
+    onComplete?: (model: Generated3DModel) => void,
+    onError?: (message: string) => void,
+): Promise<void> {
+    const response = await fetch(`${API_URL}/api/models3d/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(req),
+    });
+
+    if (!response.ok) {
+        const err = await response.text();
+        onError?.(err);
+        return;
+    }
+
+    const reader = response.body?.getReader();
+    if (!reader) return;
+
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+            if (line.startsWith('data: ')) {
+                const raw = line.slice(6).trim();
+                if (!raw) continue;
+
+                try {
+                    const data = JSON.parse(raw);
+
+                    if (data.step !== undefined && data.percentage !== undefined) {
+                        onProgress?.(data.step, data.total_steps, data.percentage, data.status);
+                    } else if (data.model) {
+                        onComplete?.(data.model);
+                    } else if (data.message) {
+                        onError?.(data.message);
+                    }
+                } catch {
+                    // skip malformed SSE data
+                }
+            }
+        }
+    }
+}
+
+export async function list3DModels(): Promise<{ items: Generated3DModel[]; total: number }> {
+    const response = await fetch(`${API_URL}/api/models3d`);
+    if (!response.ok) throw new Error('Failed to fetch 3D models');
+    return await response.json();
+}
+
+export async function delete3DModel(filename: string): Promise<void> {
+    const response = await fetch(`${API_URL}/api/models3d/${encodeURIComponent(filename)}`, {
+        method: 'DELETE',
+    });
+    if (!response.ok) throw new Error('Failed to delete 3D model');
+}
+
+export async function upload3DReference(file: File): Promise<{ id: string; url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const response = await fetch(`${API_URL}/api/models3d/upload-reference`, {
+        method: 'POST',
+        body: formData,
+    });
+    if (!response.ok) throw new Error('Failed to upload reference image');
+    return await response.json();
+}
+
+// ============================================================
+// Feature Flags
+// ============================================================
+
+export interface FeatureFlags {
+    enable_3d: boolean;
+}
+
+export async function getFeatures(): Promise<FeatureFlags> {
+    try {
+        const response = await fetch(`${API_URL}/api/features`);
+        if (!response.ok) return { enable_3d: true }; // default ON
+        return await response.json();
+    } catch {
+        return { enable_3d: true }; // default ON if backend unreachable
+    }
+}

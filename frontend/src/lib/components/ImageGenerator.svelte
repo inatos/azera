@@ -147,7 +147,7 @@
 <div class="generator">
     <div class="generator-form">
         <div class="form-section">
-            <label for="prompt">Prompt</label>
+            <label for="prompt" class="has-tooltip" data-tooltip="Describe the image you want to generate. Be specific — include subject, style, colours, mood, and composition for best results.">Prompt</label>
             <textarea 
                 id="prompt"
                 bind:value={prompt}
@@ -158,7 +158,7 @@
         </div>
         
         <div class="form-section">
-            <label for="negative">Negative Prompt (optional)</label>
+            <label for="negative" class="has-tooltip" data-tooltip="Terms the model will try to avoid. Common entries: 'low quality, blurry, bad anatomy, watermark, text'. Leave blank if unsure.">Negative Prompt (optional)</label>
             <textarea 
                 id="negative"
                 bind:value={negativePrompt}
@@ -171,15 +171,14 @@
         <!-- Model -->
         <div class="form-section">
             <!-- svelte-ignore a11y_label_has_associated_control -->
-            <label>Model</label>
+            <label class="has-tooltip" data-tooltip="The diffusion model used for generation. Animagine XL 3.1 is an SDXL fine-tune specialised for anime and manga art styles.">Model</label>
             <div class="model-badge">🎨 Animagine XL 3.1</div>
-            <span class="model-hint">Anime / manga generation (SDXL fine-tune)</span>
         </div>
         
         <!-- Aspect Ratio Presets -->
         <div class="form-section">
             <!-- svelte-ignore a11y_label_has_associated_control -->
-            <label>Aspect Ratio</label>
+            <label class="has-tooltip" data-tooltip="Predefined width × height presets optimised for SDXL. Pick a ratio that suits your composition — square for portraits, wide for landscapes, tall for full-body characters.">Aspect Ratio</label>
             <div class="aspect-buttons">
                 {#each aspectRatios as ar}
                     <button 
@@ -197,7 +196,7 @@
         <!-- Reference Image -->
         <div class="form-section">
             <!-- svelte-ignore a11y_label_has_associated_control -->
-            <label>Reference Image (optional)</label>
+            <label class="has-tooltip" data-tooltip="Upload an image to guide the generation via img2img. The model will use it as a starting point, blending it with your prompt according to the Influence slider.">Reference Image (optional)</label>
             <div class="reference-area">
                 {#if referenceImage}
                     <div class="reference-preview">
@@ -206,7 +205,7 @@
                     </div>
                     <div class="strength-slider">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>Influence: {Math.round(referenceStrength * 100)}%</label>
+                        <label class="has-tooltip" data-tooltip="How strongly the reference image affects the output. Low values (~10-30%) add subtle hints; high values (~70-100%) closely reproduce the reference with prompt-guided modifications.">Influence: {Math.round(referenceStrength * 100)}%</label>
                         <input 
                             type="range" 
                             min="0.1" 
@@ -241,31 +240,31 @@
                 <div class="option-row">
                     <div class="option">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>Steps</label>
+                        <label class="has-tooltip" data-tooltip="Number of diffusion denoising steps. More steps = higher quality but slower. 28 is a good balance; 20 is faster, 50+ gives diminishing returns.">Steps</label>
                         <input type="number" bind:value={steps} min="1" max="150" disabled={isGenerating} />
                     </div>
                     <div class="option">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>CFG Scale</label>
+                        <label class="has-tooltip" data-tooltip="Classifier-Free Guidance scale. Controls how closely the output follows your prompt. Low (1-5) = creative / loose; High (10-20) = literal / strict. 7 is a balanced default.">CFG Scale</label>
                         <input type="number" bind:value={cfgScale} min="1" max="30" step="0.5" disabled={isGenerating} />
                     </div>
                 </div>
                 <div class="option-row">
                     <div class="option">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>Width</label>
+                        <label class="has-tooltip" data-tooltip="Output image width in pixels. Must be a multiple of 64. Higher values use more VRAM. Use the aspect-ratio presets above for optimal SDXL resolutions.">Width</label>
                         <input type="number" bind:value={width} min="64" max="2048" step="64" disabled={isGenerating} />
                     </div>
                     <div class="option">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>Height</label>
+                        <label class="has-tooltip" data-tooltip="Output image height in pixels. Must be a multiple of 64. Higher values use more VRAM. Use the aspect-ratio presets above for optimal SDXL resolutions.">Height</label>
                         <input type="number" bind:value={height} min="64" max="2048" step="64" disabled={isGenerating} />
                     </div>
                 </div>
                 <div class="option-row">
                     <div class="option seed-option">
                         <!-- svelte-ignore a11y_label_has_associated_control -->
-                        <label>Seed (-1 = random)</label>
+                        <label class="has-tooltip" data-tooltip="Fixed seed for reproducible results. Use -1 for a random seed each time. Set a specific value to regenerate the exact same image with the same settings.">Seed (-1 = random)</label>
                         <div class="seed-input">
                             <input type="number" bind:value={seed} disabled={isGenerating} />
                             <button class="dice-btn" onclick={randomizeSeed} disabled={isGenerating} title="Randomize">🎲</button>
@@ -675,5 +674,39 @@
         color: var(--text-tertiary);
         font-size: 0.75rem;
         margin-top: 0.25rem;
+    }
+
+    /* Tooltips */
+    .has-tooltip {
+        position: relative;
+        cursor: help;
+        border-bottom: 1px dotted var(--text-tertiary);
+        width: fit-content;
+    }
+
+    .has-tooltip::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 0;
+        background: var(--bg-tertiary, #1e1e2e);
+        color: var(--text-primary);
+        padding: 0.5rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 400;
+        line-height: 1.45;
+        max-width: 280px;
+        width: max-content;
+        white-space: normal;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 100;
+    }
+
+    .has-tooltip:hover::after {
+        opacity: 1;
     }
 </style>

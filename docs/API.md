@@ -789,6 +789,133 @@ curl -X DELETE http://localhost:3000/api/images/azera_sunset_2026-02-22.png
 
 ---
 
+## 3D Model Generation
+
+### `POST /api/models3d/generate`
+
+Generate a 3D model from a reference image.
+
+```bash
+curl -N -X POST http://localhost:3000/api/models3d/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "image_base64": "<base64-encoded-image>",
+    "steps": 50,
+    "guidance_scale": 7.5,
+    "octree_resolution": 256,
+    "num_views": 6,
+    "texture_size": 1024,
+    "output_format": "glb"
+  }'
+```
+
+**Request Body:**
+| Field | Type | Required | Default | Description |
+|-------|------|----------|---------|-------------|
+| `image_base64` | string | no | — | Base64-encoded reference image (preferred) |
+| `image_url` | string | no | — | URL of reference image |
+| `steps` | u32 | no | 50 | Denoising steps (10–200) |
+| `guidance_scale` | f32 | no | 7.5 | Classifier-free guidance (1–20) |
+| `octree_resolution` | u32 | no | 256 | Mesh detail level |
+| `num_views` | u32 | no | 6 | Multi-view count (4–12) |
+| `seed` | i64 | no | — | Random seed |
+| `remove_background` | bool | no | true | Remove image background |
+| `foreground_ratio` | f32 | no | 0.9 | Foreground crop ratio |
+| `texture_size` | u32 | no | 1024 | Texture resolution (512–2048) |
+| `output_format` | string | no | "glb" | Output format: `glb` or `obj` |
+| `custom_filename` | string | no | — | Custom output filename |
+| `enable_texture` | bool | no | true | Enable PBR texture painting |
+
+**SSE Events:**
+| Event | Data | Description |
+|-------|------|-------------|
+| `progress` | `{"stage": "shape", "step": 5, "total_steps": 50, "progress": 0.1}` | Generation progress |
+| `complete` | `{"filename": "model.glb", "url": "/api/models3d/model.glb", "format": "glb"}` | Generation complete |
+| `error` | `{"message": "..."}` | Error occurred |
+
+### `GET /api/models3d`
+
+List all generated 3D models.
+
+```bash
+curl http://localhost:3000/api/models3d
+```
+
+```json
+[
+  {
+    "filename": "medieval_sword.glb",
+    "url": "/api/models3d/medieval_sword.glb",
+    "prompt": "a medieval sword",
+    "format": "glb",
+    "file_size": 2048576,
+    "seed": 42,
+    "created_at": "2026-03-15T10:30:00Z"
+  }
+]
+```
+
+### `GET /api/models3d/:filename`
+
+Download a specific 3D model file.
+
+```bash
+curl -O http://localhost:3000/api/models3d/medieval_sword.glb
+```
+
+### `DELETE /api/models3d/:filename`
+
+Delete a generated 3D model.
+
+```bash
+curl -X DELETE http://localhost:3000/api/models3d/medieval_sword.glb
+```
+
+```json
+{"status": "deleted", "filename": "medieval_sword.glb"}
+```
+
+### `POST /api/models3d/upload-reference`
+
+Upload a reference image for image-to-3D generation.
+
+```bash
+curl -X POST http://localhost:3000/api/models3d/upload-reference \
+  -F "file=@reference.png"
+```
+
+```json
+{"filename": "ref_1710500000.png", "url": "/api/models3d/references/ref_1710500000.png"}
+```
+
+### `GET /api/models3d/references/:filename`
+
+Retrieve an uploaded reference image.
+
+```bash
+curl http://localhost:3000/api/models3d/references/ref_1710500000.png
+```
+
+---
+
+## Feature Flags
+
+### `GET /api/features`
+
+Returns which optional features are enabled on this instance.
+
+```bash
+curl http://localhost:3000/api/features
+```
+
+```json
+{"enable_3d": true}
+```
+
+> **Note:** Set `ENABLE_3D=false` on `azera-core` to hide the Generate-3D tab in the Canvas UI. The Gallery-3D tab remains accessible so previously generated models can still be viewed. On by default.
+
+---
+
 ## Settings
 
 ### `GET /api/settings`
@@ -886,10 +1013,17 @@ curl -X PUT http://localhost:3000/api/settings/ui \
 | 44 | GET | `/api/images/references/:filename` | Images |
 | 45 | GET | `/api/images/:filename` | Images |
 | 46 | DELETE | `/api/images/:filename` | Images |
-| 47 | GET | `/api/settings` | Settings |
-| 48 | PUT | `/api/settings/editor` | Settings |
-| 49 | PUT | `/api/settings/ui` | Settings |
-| 50 | POST | `/api/chat` | Legacy |
-| 51 | GET | `/api/history/:session_id` | Legacy |
-| 52 | POST | `/api/clear` | Legacy |
-| 53 | GET | `/health` | Health |
+| 47 | POST | `/api/models3d/generate` | 3D Models |
+| 48 | GET | `/api/models3d` | 3D Models |
+| 49 | POST | `/api/models3d/upload-reference` | 3D Models |
+| 50 | GET | `/api/models3d/references/:filename` | 3D Models |
+| 51 | GET | `/api/models3d/:filename` | 3D Models |
+| 52 | DELETE | `/api/models3d/:filename` | 3D Models |
+| 53 | GET | `/api/features` | Feature Flags |
+| 54 | GET | `/api/settings` | Settings |
+| 55 | PUT | `/api/settings/editor` | Settings |
+| 56 | PUT | `/api/settings/ui` | Settings |
+| 57 | POST | `/api/chat` | Legacy |
+| 58 | GET | `/api/history/:session_id` | Legacy |
+| 59 | POST | `/api/clear` | Legacy |
+| 60 | GET | `/health` | Health |

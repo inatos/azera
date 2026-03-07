@@ -48,6 +48,7 @@ bun dev
 - **Qdrant Dashboard**: http://localhost:6333/dashboard
 - **Meilisearch**: http://localhost:7700
 - **ImageGen**: http://localhost:7860
+- **Gen3D**: http://localhost:7861
 - **Jenkins**: http://localhost:8081 (admin / azera2026)
 
 ## Logs
@@ -56,6 +57,7 @@ docker compose logs -f azera-core
 docker compose logs -f azera-web
 docker compose logs -f ollama
 docker compose logs -f imagegen
+docker compose logs -f gen3d
 ```
 
 ## Database Access
@@ -78,7 +80,7 @@ docker compose up -d
 
 ## Docker Disk Cleanup
 
-When the WSL2 virtual disk (VHDX) grows too large, run this procedure to reclaim space.
+A `docker-gc` sidecar container runs automatically and prunes dangling images and build cache (>7 days) daily. For situations where the WSL2 virtual disk (VHDX) grows too large, run this manual procedure to reclaim space.
 
 ### 1. Stop & Prune
 ```powershell
@@ -135,4 +137,4 @@ docker compose up -d --build
 docker compose ps
 ```
 
-> **Tip**: Run this whenever free disk space drops below ~20 GB or after removing large models/images.
+> **Tip**: Run this whenever free disk space drops below ~20 GB or after removing large models/images. The automated docker-gc handles routine cleanup, but the VHDX compaction step is always manual.

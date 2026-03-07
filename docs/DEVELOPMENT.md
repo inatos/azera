@@ -41,6 +41,7 @@ docker compose ps
 - **Qdrant Dashboard**: http://localhost:6333/dashboard
 - **Meilisearch**: http://localhost:7700
 - **ImageGen API**: http://localhost:7860
+- **Gen3D API**: http://localhost:7861
 - **Jenkins CI**: http://localhost:8081 (admin / azera2026)
 ```
 
@@ -97,7 +98,7 @@ main.rs          # Server setup, router, service initialization
 components.rs    # Agent state (Persona, MentalState, WorkingMemory, AgentConfig)
 systems.rs       # The Tick Loop — perception (Dragonfly→agent), dreaming, reflection
                  #   Dreams/reflections dual-write to Qdrant + Meilisearch
-handlers.rs      # 53 HTTP request handlers + hybrid RAG pipeline
+handlers.rs      # 60 HTTP request handlers + hybrid RAG pipeline
                  #   Three-source merge: Qdrant semantic + Meilisearch memories + chats
                  #   Cross-chat isolation (must_not filter, recency, score threshold)
                  #   Persona isolation: Meilisearch filters by ai_persona_id
@@ -124,6 +125,22 @@ entrypoint.sh      # Downloads models then starts server
 Dockerfile         # PyTorch + CUDA runtime
 ```
 
+### 3D Generation (`gen3d/`)
+```
+server.py          # FastAPI server (Hunyuan3D 2.1) with low-VRAM optimizations
+                   #   Sequential CPU↔GPU offloading (peak VRAM = max(DiT,VAE) ≈ 7 GB)
+                   #   Pipeline parallelism (threaded DiT→CPU ‖ VAE→GPU transition)
+                   #   mmap + _StagedDict + assign=True for memory-efficient loading
+                   #   Volume-backed on-demand loading (unloads after each generation)
+                   #   torch.compile with inductor backend (disk-cached kernels)
+                   #   Lazy texture pipeline (loaded after shape gen, released after use)
+                   #   Text-to-image bridge via imagegen for text-only prompts
+bpy_stub.py        # Stub module so texture pipeline imports succeed without Blender
+download_models.py # Pre-downloads model weights at container startup
+entrypoint.sh      # Downloads models then starts server
+Dockerfile         # CUDA 12.4 devel + PyTorch 2.5.1 + Hunyuan3D 2.1
+```
+
 ### Frontend (`frontend/src/lib/`)
 ```
 store.svelte.ts      # Svelte 5 state management (AppState class)
@@ -136,6 +153,8 @@ components/
   Sidebar.svelte     # Navigation, history, groups, tags
   ImageGenerator.svelte  # AI image generation with progress
   ImageGallery.svelte    # Browse/manage generated images
+  Model3DGenerator.svelte # Image-to-3D generation (reference image required)
+  Model3DGallery.svelte   # Browse/manage 3D models (GLB/glTF only)
   PersonaEditor.svelte   # Create/edit personas
   ProfileViewer.svelte   # View persona details
   ModelManager.svelte    # Pull/delete Ollama models
@@ -200,6 +219,23 @@ components/
 | POST | /api/memories | Store embedding |
 
 > **Note**: The hybrid RAG pipeline (Qdrant + Meilisearch) runs automatically during chat. The search endpoint provides direct access to Qdrant for debugging.
+
+### 3D Model Generation
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | /api/models3d/generate | Generate 3D model (SSE) |
+| GET | /api/models3d | List 3D models |
+| POST | /api/models3d/upload-reference | Upload reference image |
+| GET | /api/models3d/references/:filename | Get reference image |
+| GET | /api/models3d/:filename | Get 3D model |
+| DELETE | /api/models3d/:filename | Delete 3D model |
+
+### Feature Flags
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | /api/features | Returns enabled feature flags |
+
+> **3D Generation Feature Flag**: Set `ENABLE_3D=false` on `azera-core` to disable the Generate-3D tab in the Canvas UI. The Gallery-3D tab remains accessible so previously generated models can still be viewed and downloaded. This is useful for systems without a dedicated GPU. The gen3d service uses sequential CPU↔GPU offloading and volume-backed on-demand loading to fit within 16 GB VRAM. On by default.
 
 ---
 
@@ -322,6 +358,8 @@ curl http://localhost:3000/health
 curl http://localhost:3000/api/status
 curl http://localhost:7860/              # ImageGen health
 curl http://localhost:7860/sdapi/v1/progress  # Generation progress
+curl http://localhost:7861/              # Gen3D health
+curl http://localhost:7861/api/v1/progress  # 3D generation progress
 ```
 
 ---

@@ -2081,6 +2081,17 @@ pub async fn health_check() -> impl IntoResponse {
     }))
 }
 
+/// GET /api/features - Feature flags for the frontend
+pub async fn get_features() -> impl IntoResponse {
+    let enable_3d = std::env::var("ENABLE_3D")
+        .map(|v| !matches!(v.to_lowercase().as_str(), "false" | "0" | "no"))
+        .unwrap_or(true); // ON by default
+
+    Json(json!({
+        "enable_3d": enable_3d,
+    }))
+}
+
 // ============================================================
 // Model Management Endpoints
 // ============================================================
@@ -3379,6 +3390,419 @@ pub async fn list_image_models() -> Json<Vec<models::ImageModel>> {
             Json(vec![])
         }
     }
+}
+
+// ============================================================
+// 3D Model Generation Endpoints
+// ============================================================
+
+/// POST /api/models3d/generate - Generate a 3D model via Hunyuan3D-2.1 (SSE streaming)
+pub async fn generate_3d(
+    State(_state): State<AppState>,
+    Json(payload): Json<models::Generate3DRequest>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    tracing::info!("🧊 Generating 3D model: {:?}", payload.prompt);
+    
+    let (tx, rx) = mpsc::channel::<Result<Event, Infallible>>(100);
+
+    // Feature flag guard
+    let enable_3d = std::env::var("ENABLE_3D")
+        .map(|v| !matches!(v.to_lowercase().as_str(), "false" | "0" | "no"))
+        .unwrap_or(true);
+    if !enable_3d {
+        let tx_err = tx.clone();
+        tokio::spawn(async move {
+            let _ = tx_err.send(Ok(Event::default()
+                .event("error")
+                .data(json!({"message": "3D generation is disabled (ENABLE_3D=false)"}).to_string())
+            )).await;
+        });
+        return Sse::new(ReceiverStream::new(rx));
+    }
+
+    let gen3d_url = std::env::var("GEN3D_URL")
+        .unwrap_or_else(|_| "http://gen3d:7861".to_string());
+    
+    tokio::spawn(async move {
+        // Send progress start
+        let _ = tx.send(Ok(Event::default()
+            .event("progress")
+            .data(json!({"step": 0, "total_steps": payload.steps, "percentage": 0.0, "status": "starting"}).to_string())
+        )).await;
+        
+        let client = reqwest::Client::builder()
+            .timeout(std::time::Duration::from_secs(3600))
+            .build()
+            .unwrap_or_else(|_| reqwest::Client::new());
+        
+        // Build request body for gen3d service
+        let gen3d_req = json!({
+            "prompt": payload.prompt,
+            "image_base64": payload.image_base64,
+            "image_url": payload.image_url,
+            "steps": payload.steps,
+            "guidance_scale": payload.guidance_scale,
+            "octree_resolution": payload.octree_resolution,
+            "num_views": payload.num_views,
+            "seed": payload.seed,
+            "remove_background": payload.remove_background,
+            "foreground_ratio": payload.foreground_ratio,
+            "texture_size": payload.texture_size,
+            "output_format": payload.output_format,
+            "custom_filename": payload.custom_filename,
+            "enable_texture": payload.enable_texture,
+        });
+        
+        // Spawn progress polling in parallel
+        let progress_tx = tx.clone();
+        let progress_url = format!("{}/api/v1/progress", gen3d_url);
+        let progress_handle = tokio::spawn(async move {
+            let progress_client = reqwest::Client::new();
+            loop {
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                match progress_client.get(&progress_url).send().await {
+                    Ok(resp) => {
+                        if let Ok(progress) = resp.json::<serde_json::Value>().await {
+                            let status = progress.get("status").and_then(|s| s.as_str()).unwrap_or("idle");
+                            if status == "idle" || status == "error" || status == "complete" {
+                                break;
+                            }
+                            let _ = progress_tx.send(Ok(Event::default()
+                                .event("progress")
+                                .data(serde_json::to_string(&progress).unwrap_or_default())
+                            )).await;
+                        }
+                    }
+                    Err(_) => {
+                        // gen3d service not reachable yet, keep trying
+                    }
+                }
+            }
+        });
+        
+        // Send generation request
+        let generate_url = format!("{}/api/v1/generate", gen3d_url);
+        match client.post(&generate_url).json(&gen3d_req).send().await {
+            Ok(resp) => {
+                progress_handle.abort();
+                if resp.status().is_success() {
+                    match resp.json::<serde_json::Value>().await {
+                        Ok(result) => {
+                            let filename = result.get("filename")
+                                .and_then(|f| f.as_str())
+                                .unwrap_or("unknown.glb");
+                            let format = result.get("format")
+                                .and_then(|f| f.as_str())
+                                .unwrap_or("glb");
+                            let file_size = result.get("file_size")
+                                .and_then(|f| f.as_u64())
+                                .unwrap_or(0);
+                            let seed = result.get("seed").and_then(|s| s.as_i64());
+                            let prompt = result.get("prompt")
+                                .and_then(|p| p.as_str())
+                                .map(|s| s.to_string());
+                            
+                            let model_data = json!({
+                                "model": {
+                                    "filename": filename,
+                                    "url": format!("/api/models3d/{}", filename),
+                                    "prompt": prompt,
+                                    "format": format,
+                                    "file_size": file_size,
+                                    "seed": seed,
+                                    "created_at": chrono::Utc::now().to_rfc3339(),
+                                }
+                            });
+                            let _ = tx.send(Ok(Event::default()
+                                .event("complete")
+                                .data(serde_json::to_string(&model_data).unwrap_or_default())
+                            )).await;
+                        }
+                        Err(e) => {
+                            let _ = tx.send(Ok(Event::default()
+                                .event("error")
+                                .data(json!({"message": e.to_string()}).to_string())
+                            )).await;
+                        }
+                    }
+                } else {
+                    let err_msg = resp.text().await.unwrap_or_else(|_| "Unknown error".into());
+                    let _ = tx.send(Ok(Event::default()
+                        .event("error")
+                        .data(json!({"message": err_msg}).to_string())
+                    )).await;
+                }
+            }
+            Err(e) => {
+                progress_handle.abort();
+                let _ = tx.send(Ok(Event::default()
+                    .event("error")
+                    .data(json!({"message": e.to_string()}).to_string())
+                )).await;
+            }
+        }
+    });
+    
+    let stream = ReceiverStream::new(rx);
+    Sse::new(stream).keep_alive(
+        axum::response::sse::KeepAlive::new()
+            .interval(std::time::Duration::from_secs(15))
+    )
+}
+
+/// GET /api/models3d - List all generated 3D models
+pub async fn list_3d_models() -> Result<Json<models::ListResponse<models::Generated3DModel>>, (StatusCode, String)> {
+    let canvas3d_dir = std::env::var("CANVAS3D_DIR")
+        .unwrap_or_else(|_| "./atelier/canvas3d".to_string());
+    let dir = std::path::Path::new(&canvas3d_dir);
+    
+    if !dir.exists() {
+        return Ok(Json(models::ListResponse { items: vec![], total: 0 }));
+    }
+    
+    let mut items = Vec::new();
+    
+    let mut entries = tokio::fs::read_dir(dir)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read canvas3d directory: {}", e)))?;
+    
+    while let Some(entry) = entries.next_entry().await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read directory entry: {}", e)))?
+    {
+        let path = entry.path();
+        if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+            let ext_lower = ext.to_lowercase();
+            if ["glb", "obj", "gltf"].contains(&ext_lower.as_str()) {
+                let filename = path.file_name()
+                    .and_then(|n| n.to_str())
+                    .unwrap_or("unknown")
+                    .to_string();
+                
+                let metadata = entry.metadata().await.ok();
+                let file_size = metadata.as_ref().map(|m| m.len()).unwrap_or(0);
+                let created_at = metadata
+                    .and_then(|m| m.created().ok())
+                    .map(|t| {
+                        let dt: chrono::DateTime<chrono::Utc> = t.into();
+                        dt.to_rfc3339()
+                    })
+                    .unwrap_or_default();
+                
+                // Try to read metadata sidecar
+                let meta_path = path.with_file_name(format!("{}.{}.json", 
+                    path.file_stem().and_then(|s| s.to_str()).unwrap_or(""),
+                    ext_lower
+                ));
+                // Also try <filename>.json (our gen3d sidecar format)
+                let meta_path2 = format!("{}.json", path.display());
+                
+                let prompt = if meta_path.exists() {
+                    tokio::fs::read_to_string(&meta_path).await.ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .and_then(|v| v.get("prompt").and_then(|p| p.as_str()).map(|s| s.to_string()))
+                } else if std::path::Path::new(&meta_path2).exists() {
+                    tokio::fs::read_to_string(&meta_path2).await.ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .and_then(|v| v.get("prompt").and_then(|p| p.as_str()).map(|s| s.to_string()))
+                } else {
+                    None
+                };
+                
+                let seed = if std::path::Path::new(&meta_path2).exists() {
+                    tokio::fs::read_to_string(&meta_path2).await.ok()
+                        .and_then(|s| serde_json::from_str::<serde_json::Value>(&s).ok())
+                        .and_then(|v| v.get("seed").and_then(|s| s.as_i64()))
+                } else {
+                    None
+                };
+                
+                items.push(models::Generated3DModel {
+                    filename: filename.clone(),
+                    url: format!("/api/models3d/{}", filename),
+                    prompt,
+                    format: ext_lower,
+                    file_size,
+                    seed,
+                    created_at,
+                });
+            }
+        }
+    }
+    
+    // Sort newest first
+    items.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    let total = items.len();
+    Ok(Json(models::ListResponse { items, total }))
+}
+
+/// GET /api/models3d/:filename - Serve a generated 3D model file
+pub async fn get_3d_model(
+    Path(filename): Path<String>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    use axum::http::header;
+    
+    let safe_filename = std::path::Path::new(&filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or((StatusCode::BAD_REQUEST, "Invalid filename".to_string()))?;
+    
+    let canvas3d_dir = std::env::var("CANVAS3D_DIR")
+        .unwrap_or_else(|_| "./atelier/canvas3d".to_string());
+    let file_path = std::path::PathBuf::from(&canvas3d_dir).join(safe_filename);
+    
+    if !file_path.exists() {
+        return Err((StatusCode::NOT_FOUND, format!("3D model not found: {}", safe_filename)));
+    }
+    
+    let data = tokio::fs::read(&file_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read 3D model: {}", e)))?;
+    
+    let content_type = match file_path.extension().and_then(|e| e.to_str()) {
+        Some("glb") => "model/gltf-binary",
+        Some("gltf") => "model/gltf+json",
+        Some("obj") => "text/plain",
+        _ => "application/octet-stream",
+    };
+    
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CONTENT_LENGTH, data.len())
+        .header(header::CACHE_CONTROL, "public, max-age=31536000")
+        .body(Body::from(data))
+        .unwrap())
+}
+
+/// DELETE /api/models3d/:filename - Delete a generated 3D model
+pub async fn delete_3d_model(
+    Path(filename): Path<String>,
+) -> Result<Json<serde_json::Value>, (StatusCode, String)> {
+    let safe_filename = std::path::Path::new(&filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or((StatusCode::BAD_REQUEST, "Invalid filename".to_string()))?;
+    
+    let canvas3d_dir = std::env::var("CANVAS3D_DIR")
+        .unwrap_or_else(|_| "./atelier/canvas3d".to_string());
+    let file_path = std::path::PathBuf::from(&canvas3d_dir).join(safe_filename);
+    
+    if !file_path.exists() {
+        return Err((StatusCode::NOT_FOUND, format!("3D model not found: {}", safe_filename)));
+    }
+    
+    tokio::fs::remove_file(&file_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to delete 3D model: {}", e)))?;
+    
+    // Also remove metadata sidecar if it exists
+    let meta_path = format!("{}.json", file_path.display());
+    if std::path::Path::new(&meta_path).exists() {
+        let _ = tokio::fs::remove_file(&meta_path).await;
+    }
+    
+    tracing::info!("🗑️ Deleted 3D model: {}", safe_filename);
+    
+    Ok(Json(json!({ "status": "deleted", "filename": safe_filename })))
+}
+
+/// POST /api/models3d/upload-reference - Upload a reference image for image-to-3D
+pub async fn upload_3d_reference(
+    mut multipart: Multipart,
+) -> Result<Json<models::ImageUploadResponse>, (StatusCode, String)> {
+    let canvas3d_dir = std::env::var("CANVAS3D_DIR")
+        .unwrap_or_else(|_| "./atelier/canvas3d".to_string());
+    let refs_dir = std::path::PathBuf::from(&canvas3d_dir).join("references");
+    
+    if !refs_dir.exists() {
+        tokio::fs::create_dir_all(&refs_dir)
+            .await
+            .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to create references directory: {}", e)))?;
+    }
+    
+    while let Some(field) = multipart.next_field().await
+        .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read multipart field: {}", e)))?
+    {
+        let field_name = field.name().unwrap_or("").to_string();
+        
+        if field_name == "file" || field_name == "image" {
+            let original_filename = field.file_name()
+                .map(|s| s.to_string())
+                .unwrap_or_else(|| "reference.png".to_string());
+            
+            let ext = std::path::Path::new(&original_filename)
+                .extension()
+                .and_then(|e| e.to_str())
+                .unwrap_or("png");
+            
+            let id = uuid::Uuid::new_v4().to_string();
+            let filename = format!("ref3d_{}_{}.{}",
+                chrono::Utc::now().timestamp(),
+                &id[..8],
+                ext
+            );
+            
+            let file_path = refs_dir.join(&filename);
+            
+            let data = field.bytes().await
+                .map_err(|e| (StatusCode::BAD_REQUEST, format!("Failed to read file data: {}", e)))?;
+            
+            if data.len() > 20 * 1024 * 1024 {
+                return Err((StatusCode::BAD_REQUEST, "File too large (max 20MB)".to_string()));
+            }
+            
+            tokio::fs::write(&file_path, &data)
+                .await
+                .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to save file: {}", e)))?;
+            
+            tracing::info!("📤 Uploaded 3D reference image: {} ({} bytes)", filename, data.len());
+            
+            return Ok(Json(models::ImageUploadResponse {
+                id,
+                url: format!("/api/models3d/references/{}", filename),
+            }));
+        }
+    }
+    
+    Err((StatusCode::BAD_REQUEST, "No image file found in request".to_string()))
+}
+
+/// GET /api/models3d/references/:filename - Serve a 3D reference image
+pub async fn get_3d_reference(
+    Path(filename): Path<String>,
+) -> Result<Response<Body>, (StatusCode, String)> {
+    use axum::http::header;
+    
+    let safe_filename = std::path::Path::new(&filename)
+        .file_name()
+        .and_then(|n| n.to_str())
+        .ok_or((StatusCode::BAD_REQUEST, "Invalid filename".to_string()))?;
+    
+    let canvas3d_dir = std::env::var("CANVAS3D_DIR")
+        .unwrap_or_else(|_| "./atelier/canvas3d".to_string());
+    let file_path = std::path::PathBuf::from(&canvas3d_dir).join("references").join(safe_filename);
+    
+    if !file_path.exists() {
+        return Err((StatusCode::NOT_FOUND, format!("Reference image not found: {}", safe_filename)));
+    }
+    
+    let data = tokio::fs::read(&file_path)
+        .await
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, format!("Failed to read image: {}", e)))?;
+    
+    let content_type = match file_path.extension().and_then(|e| e.to_str()) {
+        Some("png") => "image/png",
+        Some("jpg") | Some("jpeg") => "image/jpeg",
+        Some("webp") => "image/webp",
+        _ => "application/octet-stream",
+    };
+    
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .header(header::CONTENT_LENGTH, data.len())
+        .body(Body::from(data))
+        .unwrap())
 }
 
 // ============================================================

@@ -248,6 +248,17 @@ async fn main() {
         .route("/api/images/:filename", get(handlers::get_image))
         .route("/api/images/:filename", delete(handlers::delete_image))
         
+        // 3D Model Generation
+        .route("/api/models3d/generate", post(handlers::generate_3d))
+        .route("/api/models3d", get(handlers::list_3d_models))
+        .route("/api/models3d/upload-reference", post(handlers::upload_3d_reference))
+        .route("/api/models3d/references/:filename", get(handlers::get_3d_reference))
+        .route("/api/models3d/:filename", get(handlers::get_3d_model))
+        .route("/api/models3d/:filename", delete(handlers::delete_3d_model))
+        
+        // Feature Flags
+        .route("/api/features", get(handlers::get_features))
+        
         // User Settings
         .route("/api/settings", get(handlers::get_settings))
         .route("/api/settings/editor", put(handlers::update_editor_settings))

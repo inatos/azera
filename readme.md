@@ -15,7 +15,7 @@ An emotionally intelligent chat application featuring a **three-layer cognitive 
 ![Edit Persona](/docs/images/edit-persona.png)
 ![Edit Persona (profile)](/docs/images/edit-persona-profile.png)
 
-### Canvas (Image Generation)
+### Canvas (Image & 3D Generation)
 ![Canvas](/docs/images/canvas.png)
 
 ### Gallery
@@ -90,6 +90,7 @@ Each chat maintains its own context. The RAG pipeline:
 - **Streaming Chat** — Real-time SSE-based responses with any Ollama model
 - **Cognitive Memory** — Three-layer RAG (semantic + lexical + working memory)
 - **Image Generation** — AI art via Animagine XL 3.1 with real-time progress tracking
+- **3D Generation** — Image-to-3D via Hunyuan3D 2.1 with low-VRAM pipeline parallelism and SSE progress tracking
 - **Persona System** — Multiple AI personalities with profiles, custom voices, and markdown system prompts (Azera + Areza seeded on startup)
 - **Searchable Dreams & Journal** — Full-text search across dreams and journal entries via Meilisearch
 - **AI Voice (TTS)** — XTTS-powered voice synthesis with voice cloning
@@ -98,7 +99,7 @@ Each chat maintains its own context. The RAG pipeline:
 - **Model Manager** — Pull and delete Ollama models from the UI (embedding models hidden)
 - **Tags & Groups** — Custom color-coded tags for chats and personas, collapsible chat groups for organization
 - **Conversation Branching** — Fork and explore conversation paths
-- **Canvas** — Dedicated image generation workspace with gallery
+- **Canvas** — Dedicated image & 3D generation workspace with 2D and 3D galleries
 - **User Preferences** — Show Thinking toggle, Send on Enter toggle, persisted to localStorage
 
 ## Quick Start
@@ -140,6 +141,10 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
        │    │   XTTS   │  │ ImageGen ││   Memory)   │
        │    │  (Voice) │  │  (Art)   │└─────────────┘
        │    └──────────┘  └──────────┘
+       │                  ┌──────────┐
+       │                  │  Gen3D   │
+       │                  │  (3D)    │
+       │                  └──────────┘
        │
   Embedding Cache + Session Context + Mental State
 ```
@@ -157,7 +162,9 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 | LLM | Ollama (any model) |
 | TTS | XTTS (Coqui) |
 | Image Gen | Diffusers + Animagine XL 3.1 |
+| 3D Gen | Hunyuan3D 2.1 (Tencent) |
 | CI/CD | Jenkins |
+| Disk Maintenance | docker-gc (daily auto-prune) |
 
 ### Services (Dockerized)
 
@@ -173,7 +180,45 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 | ollama-init | — | Pulls models from ledger on startup |
 | XTTS | 8020 | Text-to-speech synthesis |
 | ImageGen | 7860 | AI image generation (Animagine XL 3.1) |
+| Gen3D | 7861 | Image-to-3D generation (Hunyuan3D 2.1) |
 | Jenkins | 8081 | CI/CD automation (admin / azera2026) |
+| docker-gc | — | Automated Docker disk cleanup (daily prune) |
+
+## GPU Memory Optimization (Low-VRAM Strategy)
+
+Hunyuan3D 2.1 is a 3.3B-parameter DiT model that nominally requires 24+ GB of system RAM and 10+ GB of VRAM. I dev'd Azera on a RTX 3080 Ti Laptop (16 GB VRAM) alongside image generation and voice synthesis by applying several layers of memory optimization:
+
+### Sequential CPU↔GPU Offloading
+Instead of loading all components to GPU simultaneously (DiT 6.5 GB + VAE 1.5 GB + conditioner 1 GB = ~10 GB), the pipeline runs in two phases:
+
+- **Phase 1** — DiT + conditioner → GPU, run diffusion, output raw latents
+- **Phase 2** — DiT + conditioner → CPU, VAE → GPU, decode latents → mesh
+
+Peak VRAM = `max(DiT, VAE)` ≈ 7 GB instead of `sum` ≈ 10 GB.
+
+### Pipeline Parallelism
+The phase transition (DiT→CPU offload + VAE→GPU load) is parallelized using threading — both transfers happen simultaneously over separate DMA channels. This reduced the transition from ~29s to ~18.9s.
+
+### Memory-Mapped Model Loading
+Three techniques eliminate the 2× RAM peak from checkpoint loading:
+
+1. **`mmap=True`** — Lazy page loading; the OS pages data in on demand instead of reading the entire 7 GB checkpoint into RAM
+2. **`_StagedDict`** — A custom dict wrapper that auto-frees the previous sub-dict when a new key is accessed (e.g., the 6.5 GB 'model' weights are freed before 'vae' weights are touched)
+3. **`assign=True`** — `load_state_dict` replaces parameters with mmap'd tensors directly instead of copying, eliminating the simultaneous checkpoint + model parameter RAM peak
+
+Combined peak: ~6.5 GB (single largest model) instead of ~16 GB naive loading.
+
+### Volume-Backed On-Demand Loading
+Models are stored on a Docker volume (`gen3d-models`, ~34 GB) and loaded on-demand per request via `mmap`. After each generation completes, the shape pipeline is fully unloaded from RAM (`_shape_pipe = None` + `gc.collect()`). Between requests, the gen3d service holds ~0 GB instead of ~9 GB. The OS file cache keeps hot pages warm, so reloads take ~30s.
+
+### Texture Pipeline Optimization
+Default Hunyuan3D texture settings (render 2048px, texture 4096px, 6 views) were too slow and VRAM-hungry. Reduced to render 1024px, texture 2048px, 4 views — still produces clean PBR materials while fitting in VRAM alongside shape generation. The texture pipeline is lazy-loaded after shape generation finishes and released after each use.
+
+### AOT Graph Compilation
+`torch.compile` with the inductor backend wraps the DiT and conditioner for Triton kernel fusion. Compiled kernels are disk-cached (`TORCHINDUCTOR_CACHE_DIR`) on the model volume so subsequent container restarts skip the 2-5 minute compilation. The VAE is excluded from compilation because its custom CUDA marching-cubes extensions create hard graph breaks.
+
+### Automated Recovery
+The gen3d container runs with `restart: unless-stopped` and `shm_size: 4g` to survive OOM events during texture generation. A `docker-gc` sidecar prunes dangling images and build cache daily to prevent disk bloat.
 
 ## Code Highlights
 
@@ -251,15 +296,17 @@ export class AppState {
 
 | Category | Endpoints |
 |----------|-----------|
-| Chat | POST /api/chat (SSE), GET /api/history/:id |
+| Chat | POST /api/chat/stream (SSE), GET /api/history/:id |
 | Personas | CRUD /api/personas |
-| Chats | CRUD /api/chats |
+| Chats | CRUD /api/chats, GET /api/chats/search |
 | Groups | CRUD /api/groups |
 | Tags | CRUD /api/tags |
 | AI State | GET /api/status, /api/dreams, /api/journal |
 | Models | GET/POST/DELETE /api/models |
 | TTS | POST /api/tts/synthesize |
 | Images | POST /api/images/generate (SSE), CRUD /api/images |
+| 3D Models | POST /api/models3d/generate (SSE), CRUD /api/models3d |
+| Feature Flags | GET /api/features |
 | Settings | GET/PUT /api/settings |
 | Search | POST /api/search, /api/memories |
 | Dream/Journal Search | GET /api/dreams/search?q=, /api/journal/search?q= |
@@ -329,7 +376,9 @@ curl -X POST http://localhost:3000/api/search \
 - **ChatMessage** — Individual message rendering with thinking toggle
 - **ImageGenerator** — AI image creation with real-time progress
 - **ImageGallery** — Browse and manage generated images
-- **Canvas** — Dedicated image generation workspace (separate route)
+- **Model3DGenerator** — Text/image-to-3D generation with parameter controls
+- **Model3DGallery** — Browse and manage generated 3D models
+- **Canvas** — Dedicated image & 3D generation workspace (separate route)
 - **PersonaEditor** — Create and customize AI personas
 - **ProfileViewer** — Live mood/energy bars, markdown profile rendering, edit button
 - **ModelManager** — Manage Ollama models
@@ -421,10 +470,11 @@ See [DEVELOPMENT.md](/docs/DEVELOPMENT.md) for full development guide.
 
 ## Skills Demonstrated
 
-- **System Design** — Multi-service cognitive architecture with clear boundaries (11 services)
+- **System Design** — Multi-service cognitive architecture with clear boundaries (13 services)
 - **Rust Development** — Async streaming, hybrid RAG, embedding caching, cognitive tick loop
 - **Frontend Engineering** — Svelte 5 runes, reactive state, real-time mood sync
-- **Python/ML Integration** — Custom diffusers server, CUDA pipelines, progress tracking
+- **Python/ML Integration** — Custom diffusers server, CUDA pipelines, low-VRAM optimization, pipeline parallelism
 - **Database Design** — Polyglot persistence (SQL, vector, search, cache) with three-layer cognition
-- **DevOps** — Docker orchestration, GPU resource management, Jenkins CI/CD
-- **AI Integration** — LLM streaming, embeddings, RAG, TTS, image generation, mood inference
+- **DevOps** — Docker orchestration, GPU resource management, automated disk cleanup, Jenkins CI/CD
+- **AI Integration** — LLM streaming, embeddings, RAG, TTS, image generation, 3D generation, mood inference
+- **GPU Memory Engineering** — Sequential CPU↔GPU offloading, mmap-backed model loading, volume-backed on-demand pipelines

@@ -64,7 +64,26 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 - Reference image upload for img2img variations
 - Custom FastAPI server with CUDA acceleration
 
-### 9. Settings & Customization
+### 9. 3D Model Generation (Canvas)
+- Hunyuan3D 2.1 (Tencent) for image-to-3D generation
+- Image-conditioned only — text prompts generate a reference image via imagegen first
+- Real-time progress via SSE (shape generation + texture painting)
+- GLB output with JSON metadata sidecars
+- Reference image upload with background removal
+- Configurable parameters (steps, guidance, octree resolution, views, texture size)
+- Custom FastAPI server with CUDA acceleration
+- Google model-viewer for in-browser 3D preview (GLB/glTF only)
+- **Low-VRAM optimizations**:
+  - Sequential CPU↔GPU offloading (peak VRAM = max(DiT, VAE) ≈ 7 GB instead of 10 GB)
+  - Pipeline parallelism (threaded phase transition: 29s → 18.9s)
+  - mmap + _StagedDict + assign=True (loading peak: 6.5 GB instead of 16 GB)
+  - Volume-backed on-demand loading (0 GB idle, ~30s reload from OS page cache)
+  - torch.compile with inductor backend (disk-cached kernels)
+  - Lazy texture pipeline (loaded after shape gen, released after use)
+  - Reduced texture defaults (render 1024px, texture 2048px, 4 views)
+  - Auto-recovery: restart: unless-stopped + shm_size 4g
+
+### 10. Settings & Customization
 - Dynamic model selector (from installed Ollama models)
 - Show Thinking toggle (display AI reasoning blocks)
 - Send on Enter toggle (Enter vs Ctrl+Enter to send)
@@ -88,9 +107,11 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 | Ollama | 11434 | LLM inference |
 | XTTS | 8020 | Voice synthesis |
 | ImageGen | 7860 | AI image generation |
+| Gen3D | 7861 | Image-to-3D generation (Hunyuan3D 2.1, low-VRAM optimized) |
 | Jenkins | 8081 | CI/CD pipeline (admin / azera2026) |
+| docker-gc | — | Automated Docker disk cleanup (daily prune) |
 
-### API Surface (53 Endpoints)
+### API Surface (60 Endpoints)
 
 **Chat Operations**
 - `POST /api/chat/stream` - Streaming chat (SSE)
@@ -151,10 +172,21 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 - `GET /api/images/:filename` - Get image
 - `DELETE /api/images/:filename` - Delete image
 
+**3D Model Generation**
+- `POST /api/models3d/generate` - Generate 3D model (SSE with progress)
+- `GET /api/models3d` - List generated 3D models
+- `POST /api/models3d/upload-reference` - Upload reference image
+- `GET /api/models3d/references/:filename` - Get reference image
+- `GET /api/models3d/:filename` - Get 3D model
+- `DELETE /api/models3d/:filename` - Delete 3D model
+
 **Voice**
 - `POST /api/tts/synthesize` - Synthesize speech
 - `POST /api/voice-samples/upload` - Upload voice sample
 - `GET /api/voice-samples/:filename` - Get voice sample
+
+**Feature Flags**
+- `GET /api/features` - Returns enabled feature flags (e.g. 3D generation)
 
 **Settings**
 - `GET /api/settings` - Get all settings
@@ -170,7 +202,7 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 
 ---
 
-## Frontend Components (23)
+## Frontend Components (25)
 
 ### Core UI
 - **ChatInput.svelte** - Input with model selector
@@ -182,6 +214,10 @@ Azera is an AGI chat application featuring emotional intelligence, memory persis
 ### Image Generation
 - **ImageGenerator.svelte** - AI image creation with progress tracking
 - **ImageGallery.svelte** - Browse and manage generated images
+
+### 3D Generation
+- **Model3DGenerator.svelte** - Image-to-3D generation with parameter controls (reference image required)
+- **Model3DGallery.svelte** - Browse and manage generated 3D models (GLB/glTF only)
 
 ### Navigation
 - **Sidebar.svelte** - Main navigation

@@ -573,6 +573,70 @@ pub struct ImageModel {
 }
 
 // ============================================================
+// 3D Generation Types
+// ============================================================
+
+/// Request for 3D model generation via Hunyuan3D-2.1
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Generate3DRequest {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_base64: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_url: Option<String>,
+    #[serde(default = "default_3d_steps")]
+    pub steps: u32,
+    #[serde(default = "default_3d_guidance")]
+    pub guidance_scale: f32,
+    #[serde(default = "default_octree_resolution")]
+    pub octree_resolution: u32,
+    #[serde(default = "default_num_views")]
+    pub num_views: u32,
+    #[serde(default = "default_neg_one")]
+    pub seed: i64,
+    #[serde(default = "default_remove_bg")]
+    pub remove_background: bool,
+    #[serde(default = "default_foreground_ratio")]
+    pub foreground_ratio: f32,
+    #[serde(default = "default_texture_size")]
+    pub texture_size: u32,
+    #[serde(default = "default_output_format")]
+    pub output_format: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub custom_filename: Option<String>,
+    #[serde(default = "default_enable_texture")]
+    pub enable_texture: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub persona_id: Option<String>,
+}
+
+fn default_3d_steps() -> u32 { 50 }
+fn default_3d_guidance() -> f32 { 7.5 }
+fn default_octree_resolution() -> u32 { 256 }
+fn default_num_views() -> u32 { 6 }
+fn default_neg_one() -> i64 { -1 }
+fn default_remove_bg() -> bool { true }
+fn default_foreground_ratio() -> f32 { 0.9 }
+fn default_texture_size() -> u32 { 1024 }
+fn default_output_format() -> String { "glb".to_string() }
+fn default_enable_texture() -> bool { true }
+
+/// Generated 3D model metadata
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Generated3DModel {
+    pub filename: String,
+    pub url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub prompt: Option<String>,
+    pub format: String,
+    pub file_size: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub seed: Option<i64>,
+    pub created_at: String,
+}
+
+// ============================================================
 // Tests
 // ============================================================
 

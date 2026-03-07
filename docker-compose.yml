@@ -15,6 +15,9 @@ services:
       - DRAGONFLY_URL=redis://dragonfly:6379
       - XTTS_URL=http://xtts:80
       - IMAGE_GEN_URL=http://imagegen:7860
+      - GEN3D_URL=http://gen3d:7861
+      - ENABLE_3D=true
+      - CANVAS3D_DIR=/app/atelier/canvas3d
       - RUST_LOG=info,azera_core=debug
     volumes:
       - ./atelier:/app/atelier        
@@ -201,7 +204,40 @@ services:
       timeout: 10s
       retries: 3
       start_period: 1800s
-
+  # 🧊 The Sculptor (3D Generation - Hunyuan3D 2.1)
+  gen3d:
+    build: ./gen3d
+    container_name: azera-gen3d
+    restart: unless-stopped
+    shm_size: "4g"
+    ports:
+      - "7861:7861"
+    volumes:
+      - ./atelier/canvas3d:/app/outputs
+      - gen3d-models:/models
+    environment:
+      - HF_HOME=/models
+      - OUTPUT_DIR=/app/outputs
+      - DISABLE_TEX=false
+      - LOW_VRAM_MODE=true
+      - ENABLE_COMPILE=true
+      - TEXTURE_RESOLUTION=512
+      - TEXTURE_VIEWS=4
+      - IMAGE_GEN_URL=http://imagegen:7860
+      - TORCHINDUCTOR_CACHE_DIR=/models/torch_cache
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7861/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 1800s
   # �🏗️ The Automaton (CI/CD)
   jenkins:
     build:
@@ -244,5 +280,25 @@ services:
       timeout: 5s
       retries: 5
 
-# Note: Using bind mounts to ./datastore/ for persistence
-# Data is backed up locally and survives container/volume cleanup
+  # 🧹 The Janitor (Docker auto-prune)
+  docker-gc:
+    image: docker:cli
+    container_name: azera-docker-gc
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          sleep 86400
+          echo "[docker-gc] Pruning dangling images..."
+          docker image prune -f
+          echo "[docker-gc] Pruning build cache older than 7 days..."
+          docker buildx prune -f --filter until=168h || true
+          echo "[docker-gc] Done. Disk usage:"
+          docker system df
+        done
+
+volumes:
+  gen3d-models:

@@ -152,12 +152,89 @@ There's also a Canvas page — a dedicated workspace for image generation that's
 
 The LLM can even trigger image generation from within a chat conversation by emitting a special `[IMAGE_GEN: prompt="...", name="..."]` tag in its response. This gets parsed server-side and fires off an async generation task.
 
-## 11 Services, One `docker compose up`
+## 3D Model Generation
 
-The full system runs as 11 Docker containers:
+Building on the image generation pipeline, Azera supports image-to-3D generation using Tencent's Hunyuan3D 2.1. It follows the same sidecar architecture — a separate Python/CUDA container running a FastAPI server — but the pipeline is substantially more complex: shape generation via a 3.3B-parameter DiT flow-matching model, followed by PBR texture painting across multiple views.
+
+Hunyuan3D is image-conditioned only — there's no native text-to-3D support. When a user provides only a text prompt, the gen3d server first calls the imagegen service to generate a reference image, then feeds that into the 3D pipeline. The UI reflects this by requiring a reference image upload for Generate-3D.
+
+The progress tracking works the same way as image generation: SSE events stream through the Rust backend, so the UI shows real-time progress for both the shape and texture stages. Output files (GLB) are stored with JSON metadata sidecars and served through the API.
+
+The Canvas page has four tabs — Generate-2D, Gallery-2D, Generate-3D, and Gallery-3D — with tab persistence via URL hash so refreshing preserves your position. The 3D gallery uses Google's `<model-viewer>` web component for interactive in-browser preview with auto-rotate, camera controls, and shadow rendering. The gallery filters to GLB/glTF formats only, since model-viewer can't handle raw OBJ files.
+
+## Fitting a 3.3B Model in 16 GB VRAM
+
+The most interesting engineering challenge was making Hunyuan3D 2.1 run on a laptop GPU. The model nominally requires 24+ GB of system RAM and 10+ GB of VRAM — my RTX 3080 Ti Laptop has 16 GB VRAM and shares 32 GB system RAM with WSL2 (capped at 24 GB via `.wslconfig`). And the 3D pipeline needs to coexist with image generation, voice synthesis, and seven other Docker containers.
+
+### The Memory Problem
+
+Naive loading of the Hunyuan3D checkpoint works like this:
+1. `torch.load("checkpoint.ckpt")` reads ~7 GB into RAM
+2. `model.load_state_dict(ckpt['model'])` copies 6.5 GB (DiT) — now 13.5 GB in RAM
+3. `vae.load_state_dict(ckpt['vae'])` copies 1.5 GB — now 15 GB in RAM
+4. Loading all three components to GPU simultaneously needs ~10 GB VRAM
+
+On a system where WSL2 is already using 12+ GB for other services, this either OOM-kills the container or the entire VM.
+
+### Three Layers of Memory Optimization
+
+**Layer 1: Memory-mapped loading.** I monkey-patched `torch.load` to inject `mmap=True`, which lazy-loads the checkpoint — the OS pages data in on demand instead of reading the entire 7 GB into RAM. Then I created `_StagedDict`, a dict wrapper that auto-frees the previous sub-dict when a new key is accessed. When PyTorch loads the 'vae' weights, the 6.5 GB 'model' weights are automatically freed first. Finally, `assign=True` on `load_state_dict` replaces model parameters with the mmap'd tensors directly instead of copying. Combined peak: ~6.5 GB instead of ~16 GB.
+
+```python
+class _StagedDict(dict):
+    """Dict wrapper that frees the previous value when a different key is read."""
+    def __init__(self, src: dict):
+        super().__init__(src)
+        self._prev: list[str] = []
+
+    def __getitem__(self, key):
+        for old in self._prev:
+            if old != key and old in self:
+                dict.__delitem__(self, old)  # Free 6.5 GB before loading 1.5 GB
+        gc.collect()
+        self._prev = [key]
+        return dict.__getitem__(self, key)
+```
+
+**Layer 2: Sequential CPU↔GPU offloading.** Inspired by ComfyUI's approach, instead of loading all components to GPU simultaneously, the pipeline runs in two phases:
+- Phase 1: DiT + conditioner → GPU, run diffusion, output raw latents (~7 GB VRAM)
+- Phase 2: DiT + conditioner → CPU, VAE → GPU, decode latents → mesh (~1.5 GB VRAM)
+
+Peak VRAM = max(DiT, VAE) ≈ 7 GB instead of sum ≈ 10 GB.
+
+The phase transition originally took ~29 seconds (sequential CPU↔GPU transfers). I parallelized it with `threading.Thread` — offloading DiT→CPU in a background thread while simultaneously loading VAE→GPU on the main thread. Both use separate DMA channels so they genuinely overlap. This brought the transition down to ~19 seconds:
+
+```python
+def _offload_dit_conditioner():
+    pipe.model.to("cpu")
+    pipe.conditioner.to("cpu")
+
+offload_thread = threading.Thread(target=_offload_dit_conditioner)
+offload_thread.start()
+pipe.vae.to(device)  # Overlaps with DiT→CPU
+offload_thread.join()
+```
+
+**Layer 3: Volume-backed on-demand loading.** Models sit on a Docker volume (~34 GB). With `mmap=True` + `assign=True`, reloading pages them in from disk (~30s) instead of holding ~9 GB in RAM permanently. After each generation, the shape pipeline is fully unloaded (`_shape_pipe = None` + `gc.collect()`). Between requests, gen3d holds ~0 GB instead of ~9 GB. The OS file cache keeps hot pages warm between runs.
+
+### Texture Pipeline
+
+The default Hunyuan3D texture settings (render 2048px, texture 4096px, 6 views) were both too slow (15+ minutes) and too VRAM-hungry. Reducing to render 1024px, texture 2048px, and 4 views still produces clean PBR materials while fitting in VRAM. The texture pipeline is lazy-loaded *after* shape generation finishes (so the DiT is safely on CPU), and released after each use to prevent OOM on subsequent generations.
+
+### Compilation Caching
+
+`torch.compile` with the inductor backend wraps the DiT and conditioner for Triton kernel fusion, but the first compilation takes 2-5 minutes. The compiled kernels are disk-cached on the model volume (`TORCHINDUCTOR_CACHE_DIR=/models/torch_cache`), so subsequent container restarts are fast. The VAE is excluded from compilation — its custom CUDA marching-cubes extensions create hard graph breaks, and single-shot execution gives minimal benefit.
+
+### Recovery
+
+Despite all optimizations, texture generation occasionally pushes the system past its limits. The gen3d container runs with `restart: unless-stopped` and `shm_size: 4g` so it automatically recovers from OOM kills without manual intervention.
+
+## 13 Services, One `docker compose up`
+
+The full system runs as 13 Docker containers:
 
 | Service | Purpose |
-|---------|---------|
+|---------|----------|
 | azera-core | Rust/Axum backend |
 | azera-web | SvelteKit frontend |
 | CockroachDB | Persistent SQL storage |
@@ -168,7 +245,9 @@ The full system runs as 11 Docker containers:
 | ollama-init | Model management on startup |
 | XTTS | Text-to-speech synthesis |
 | ImageGen | AI image generation (CUDA) |
+| Gen3D | Image-to-3D generation (CUDA, low-VRAM optimized) |
 | Jenkins | CI/CD pipeline |
+| docker-gc | Automated disk cleanup (daily prune) |
 
 Despite the complexity, getting started is just `docker compose up -d`. The ollama-init sidecar reads a model ledger and pulls any missing models on startup, so the system is self-bootstrapping.
 
@@ -181,6 +260,10 @@ Despite the complexity, getting started is just `docker compose up -d`. The olla
 **Cross-chat isolation is a correctness problem, not a feature.** I initially treated memory isolation as a nice-to-have. Then I watched one persona's conversation details leak into another and realized it's a hard requirement. Every query path needs explicit persona and chat filters or the system becomes untrustworthy.
 
 **The persona system exceeded my expectations.** I thought of it as a simple system prompt swap, but the structured markdown format — with separate sections for psychology, task behaviors, quirks, and relationship dynamics — produces meaningfully different AI personalities. Azera and Areza don't just talk differently; they *think* differently about the same problems.
+
+**VRAM is a budget, not a limit.** Running a 3.3B-parameter 3D generation model on a 16 GB laptop GPU alongside image generation, voice synthesis, and seven other services seemed impossible at first. The trick is treating VRAM like a time-shared resource: sequential CPU↔GPU offloading, pipeline parallelism for phase transitions, mmap-backed loading to eliminate RAM peaks, and aggressive unloading between requests. The model doesn't need to live in memory — it just needs to be there when you need it. Volume-backed mmap loading with OS page cache handles the rest.
+
+**Docker disk is a slow leak.** Dangling images, orphaned build cache, and multi-stage build layers accumulate silently until you're 100+ GB deep. The WSL2 VHDX virtual disk *never* auto-shrinks. An automated docker-gc sidecar that prunes daily is cheap insurance — and you'll still need to compact the VHDX periodically.
 
 ---
 
