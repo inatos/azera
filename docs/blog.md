@@ -39,12 +39,32 @@ The three-layer approach means each service does what it's best at:
 ```rust
 // 1. Qdrant — what's semantically relevant?
 let semantic_results = search_memories_with_filter_cached(
-    &vector_service, &ollama_host, &cache, "azera_memory", &message, 10, Some(filter),
+    vector_service: &vector_service,
+    ollama_host:    &ollama_host,
+    cache:          &cache,
+    collection:     "azera_memory",
+    query:          &message,
+    limit:          10,
+    filter:         Some(filter)
 ).await?;
 
 // 2. Meilisearch — what matches the words?
-let lexical_results = meili_search_memories(&meili_url, &meili_key, &message, None, ai_persona_id, 10).await;
-let lexical_chats = meili_search_chats_for_rag(&meili_url, &meili_key, &message, ai_persona_id, 5).await;
+let lexical_results = meili_search_memories(
+    meili_url:   &meili_url,
+    meili_key:   &meili_key,
+    query:       &message,
+    memory_type: None,
+    persona_id:  ai_persona_id.as_deref(),
+    limit:       10
+).await;
+
+let lexical_chats = meili_search_chats_for_rag(
+    meili_url:     &meili_url,
+    meili_key:     &meili_key,
+    query:         &message,
+    ai_persona_id: ai_persona_id.as_deref(),
+    limit:         5
+).await;
 
 // 3. Merge, dedup, inject as context
 let mut seen_content = HashSet::new();
@@ -72,12 +92,23 @@ Dreams and journal entries are dual-written to both Qdrant and Meilisearch, so t
 Every AI response goes through mood inference: a lightweight LLM call that classifies the emotional tone of the response into one of eight moods (happy, excited, content, calm, curious, thoughtful, melancholy, concerned). This mood value propagates through the entire system:
 
 ```rust
-let mood = llm.infer_mood(&model, &full_response).await?;
-let _ = CacheService::update_mood(&cache, mood_value, &mood, -0.03).await;
+let mood = llm.infer_mood(
+    model:         &model,
+    response_text: &full_response
+).await?;
+
+let _ = CacheService::update_mood(
+    cache:        &cache,
+    mood_value:   mood_value,
+    mood_label:   &mood,
+    energy_delta: -0.03
+).await;
 
 let _ = tx.send(StreamEvent::Done {
-    message_id, mood: Some(mood),
-    mood_value: done_mood_value, energy: done_energy,
+    message_id: assistant_msg_id,
+    mood:       mood,
+    mood_value: done_mood_value,
+    energy:     done_energy,
 }).await;
 ```
 
