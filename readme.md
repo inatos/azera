@@ -231,13 +231,34 @@ let filter = json!({
     "must": [{ "key": "ai_persona_id", "match": { "value": ai_persona_id } }],
     "must_not": [{ "key": "chat_id", "match": { "value": chat_id } }]
 });
+
 let semantic_results = search_memories_with_filter_cached(
-    &vector_service, &ollama_host, &cache, "azera_memory", &message, 10, Some(filter),
+    vector_service: &vector_service,
+    ollama_host:    &ollama_host,
+    cache:          &cache,
+    collection:     "azera_memory",
+    query:          &message,
+    limit:          10,
+    filter:         Some(filter)
 ).await?;
 
 // 2. Lexical search — Meilisearch across memories + chats (filtered by persona)
-let lexical_results = meili_search_memories(&meili_url, &meili_key, &message, None, ai_persona_id, 10).await;
-let lexical_chats = meili_search_chats_for_rag(&meili_url, &meili_key, &message, ai_persona_id, 5).await;
+let lexical_results = meili_search_memories(
+    meili_url:   &meili_url,
+    meili_key:   &meili_key,
+    query:       &message,
+    memory_type: None,
+    persona_id:  ai_persona_id.as_deref(),
+    limit:       10
+).await;
+
+let lexical_chats = meili_search_chats_for_rag(
+    meili_url:     &meili_url,
+    meili_key:     &meili_key,
+    query:         &message,
+    ai_persona_id: ai_persona_id.as_deref(),
+    limit:         5
+).await;
 
 // 3. Merge & deduplicate — inline with quality filters
 let mut seen_content = HashSet::new();
@@ -252,13 +273,31 @@ for hit in &lexical_chats   { /* skip current chat, dedup chat snippets */ }
 ### Streaming Chat with Mood Sync
 ```rust
 // Infer mood from response → sync to Dragonfly → emit Done with latest state
-let mood = llm.infer_mood(&model, &full_response).await?;
-let _ = CacheService::update_mood(&cache, mood_value, &mood, -0.03).await;
+let mood = llm.infer_mood(
+    model:         &model,
+    response_text: &full_response
+).await?;
 
-let (done_mood_value, done_energy) = CacheService::get_mental_state(&cache).await?;
+let _ = CacheService::update_mood(
+    cache:        &cache,
+    mood_value:   mood_value,
+    mood_label:   &mood,
+    energy_delta: -0.03
+).await;
+
+// Read latest mood/energy from Dragonfly for the Done event
+let (done_mood_value, done_energy) = match CacheService::get_mental_state(
+    cache: &cache
+).await {
+    Ok(Some(ms)) => (Some(ms.mood), Some(ms.energy)),
+    _            => (None, None),
+};
+
 let _ = tx.send(StreamEvent::Done {
-    message_id, mood: Some(mood),
-    mood_value: done_mood_value, energy: done_energy,
+    message_id: assistant_msg_id,
+    mood:       mood,
+    mood_value: done_mood_value,
+    energy:     done_energy
 }).await;
 ```
 
@@ -271,12 +310,22 @@ fn embedding_key(text: &str) -> String {
 }
 
 // Check cache → compute via Ollama on miss → store async
-if let Some(cached) = CacheService::get_cached_embedding(cache, text).await? {
+if let Some(cached) = CacheService::get_cached_embedding(
+    cache: cache,
+    text:  text
+).await? {
     return Ok(cached);  // cache hit
 }
-let embedding = self.generate_embedding(ollama_host, text).await?;
+let embedding = self.generate_embedding(
+    ollama_host: ollama_host,
+    text:        text
+).await?;
 tokio::spawn(async move {
-    let _ = CacheService::cache_embedding(&cache, &text, &embedding).await; // 7d TTL
+    let _ = CacheService::cache_embedding(
+        cache:     &cache,
+        text:      &text,
+        embedding: &embedding  // 7d TTL
+    ).await;
 });
 ```
 
@@ -378,7 +427,7 @@ curl -X POST http://localhost:3000/api/search \
 - **ChatMessage** — Individual message rendering with thinking toggle
 - **ImageGenerator** — AI image creation with real-time progress
 - **ImageGallery** — Browse and manage generated images
-- **Model3DGenerator** — Text/image-to-3D generation with parameter controls
+- **Model3DGenerator** — Image-to-3D generation with parameter controls
 - **Model3DGallery** — Browse and manage generated 3D models
 - **Canvas** — Dedicated image & 3D generation workspace (separate route)
 - **PersonaEditor** — Create and customize AI personas
