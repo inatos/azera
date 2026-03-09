@@ -16,10 +16,12 @@ An emotionally intelligent chat application featuring a **three-layer cognitive 
 ![Edit Persona (profile)](/docs/images/edit-persona-profile.png)
 
 ### Canvas (Image & 3D Generation)
-![Canvas](/docs/images/canvas.png)
+![2D Canvas](/docs/images/canvas.png)
+![3D Canvas](/docs/images/image-to-3d.png)
 
 ### Gallery
-![Gallery](/docs/images/gallery.png)
+![2D Gallery](/docs/images/gallery.png)
+![3D Gallery](/docs/images/3d-vaal-orb.png)
 
 ## Cognitive Architecture
 
