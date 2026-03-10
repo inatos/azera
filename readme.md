@@ -64,19 +64,19 @@ Azera's brain is a three-layer pipeline that gives it genuine context awareness,
 
 | Layer | Service | Role | TTL |
 |-------|---------|------|-----|
-| **Semantic Memory** | Qdrant | Long-term meaning — vector embeddings for contextual retrieval | Permanent |
-| **Lexical Memory** | Meilisearch | Structured retrieval — word-based search across `chats` and `memories` indexes | Permanent |
-| **Working Memory** | DragonflyDB | Attention buffer — session context, embedding cache, mental state | 24h sessions, 7d embeddings |
+| **Semantic Memory** | Qdrant | Long-term meaning: vector embeddings for contextual retrieval | Permanent |
+| **Lexical Memory** | Meilisearch | Structured retrieval: word-based search across `chats` and `memories` indexes | Permanent |
+| **Working Memory** | DragonflyDB | Attention buffer: session context, embedding cache, mental state | 24h sessions, 7d embeddings |
 
 ### How It Thinks
 
-1. **Perception** — Every tick (1Hz), the perception system syncs Dragonfly → agent state, applying idle drift (energy recovery, mood → neutral, focus decay)
-2. **Retrieval** — On each message, the hybrid RAG pipeline queries all three layers, deduplicates results, and builds context
-3. **Reasoning** — The LLM receives system prompt + retrieved memories + session context + conversation history
-4. **Response** — Tokens stream to the frontend; mood is inferred from the response; mental state updates propagate through Dragonfly → CockroachDB → Frontend
-5. **Memory** — The exchange is stored in Qdrant (semantic) + Meilisearch (lexical) + Dragonfly (session context)
-6. **Dreams** — At low energy, the dreaming system generates creative consolidations, dual-written to Qdrant and Meilisearch
-7. **Reflection** — At high clarity, the reflection system writes journal entries with insights
+1. **Perception**: Every tick (1Hz), the perception system syncs Dragonfly → agent state, applying idle drift (energy recovery, mood → neutral, focus decay)
+2. **Retrieval**: On each message, the hybrid RAG pipeline queries all three layers, deduplicates results, and builds context
+3. **Reasoning**: The LLM receives system prompt + retrieved memories + session context + conversation history
+4. **Response**: Tokens stream to the frontend; mood is inferred from the response; mental state updates propagate through Dragonfly → CockroachDB → Frontend
+5. **Memory**: The exchange is stored in Qdrant (semantic) + Meilisearch (lexical) + Dragonfly (session context)
+6. **Dreams**: At low energy, the dreaming system generates creative consolidations, dual-written to Qdrant and Meilisearch
+7. **Reflection**: At high clarity, the reflection system writes journal entries with insights
 
 ### Cross-Chat Isolation
 
@@ -89,20 +89,20 @@ Each chat maintains its own context. The RAG pipeline:
 
 ## Features
 
-- **Streaming Chat** — Real-time SSE-based responses with any Ollama model
-- **Cognitive Memory** — Three-layer RAG (semantic + lexical + working memory)
-- **Image Generation** — AI art via Animagine XL 3.1 with real-time progress tracking
-- **3D Generation** — Image-to-3D via Hunyuan3D 2.1 with low-VRAM pipeline parallelism and SSE progress tracking
-- **Persona System** — Multiple AI personalities with profiles, custom voices, and markdown system prompts (Azera + Areza seeded on startup)
-- **Searchable Dreams & Journal** — Full-text search across dreams and journal entries via Meilisearch
-- **AI Voice (TTS)** — XTTS-powered voice synthesis with voice cloning
-- **Mental State** — Mood, energy, and focus simulation with real-time UI sync
-- **Dreams & Journal** — Autonomous reflection and creative processing (dual-written to Qdrant + Meilisearch)
-- **Model Manager** — Pull and delete Ollama models from the UI (embedding models hidden)
-- **Tags & Groups** — Custom color-coded tags for chats and personas, collapsible chat groups for organization
-- **Conversation Branching** — Fork and explore conversation paths
-- **Canvas** — Dedicated image & 3D generation workspace with 2D and 3D galleries
-- **User Preferences** — Show Thinking toggle, Send on Enter toggle, persisted to localStorage
+- **Streaming Chat**: Real-time SSE-based responses with any Ollama model
+- **Cognitive Memory**: Three-layer RAG (semantic + lexical + working memory)
+- **Image Generation**: AI art via Animagine XL 3.1 with real-time progress tracking
+- **3D Generation**: Image-to-3D via Hunyuan3D 2.1 with low-VRAM pipeline parallelism and SSE progress tracking
+- **Persona System**: Multiple AI personalities with profiles, custom voices, and markdown system prompts (Azera + Areza seeded on startup)
+- **Searchable Dreams & Journal**: Full-text search across dreams and journal entries via Meilisearch
+- **AI Voice (TTS)**: XTTS-powered voice synthesis with voice cloning
+- **Mental State**: Mood, energy, and focus simulation with real-time UI sync
+- **Dreams & Journal**: Autonomous reflection and creative processing (dual-written to Qdrant + Meilisearch)
+- **Model Manager**: Pull and delete Ollama models from the UI (embedding models hidden)
+- **Tags & Groups**: Custom color-coded tags for chats and personas, collapsible chat groups for organization
+- **Conversation Branching**: Fork and explore conversation paths
+- **Canvas**: Dedicated image & 3D generation workspace with 2D and 3D galleries
+- **User Preferences**: Show Thinking toggle, Send on Enter toggle, persisted to localStorage
 
 ## Quick Start
 
@@ -158,9 +158,9 @@ See [QUICK_START.md](/docs/QUICK_START.md) for detailed setup and API examples.
 | Frontend | Svelte 5, SvelteKit 2, TailwindCSS |
 | Backend | Rust 2021, Axum 0.7, Tokio |
 | Database | CockroachDB (SQL) |
-| Working Memory | DragonflyDB (Redis-compatible) — session context, embedding cache, mental state |
-| Semantic Memory | Qdrant — vector embeddings for RAG |
-| Lexical Memory | Meilisearch — full-text search across `chats` and `memories` indexes |
+| Working Memory | DragonflyDB (Redis-compatible): session context, embedding cache, mental state |
+| Semantic Memory | Qdrant: vector embeddings for RAG |
+| Lexical Memory | Meilisearch: full-text search across `chats` and `memories` indexes |
 | LLM | Ollama (any model) |
 | TTS | XTTS (Coqui) |
 | Image Gen | Diffusers + Animagine XL 3.1 |
@@ -193,20 +193,20 @@ Hunyuan3D 2.1 is a 3.3B-parameter DiT model that nominally requires 24+ GB of sy
 ### Sequential CPU↔GPU Offloading
 Instead of loading all components to GPU simultaneously (DiT 6.5 GB + VAE 1.5 GB + conditioner 1 GB = ~10 GB), the pipeline runs in two phases:
 
-- **Phase 1** — DiT + conditioner → GPU, run diffusion, output raw latents
-- **Phase 2** — DiT + conditioner → CPU, VAE → GPU, decode latents → mesh
+- **Phase 1**: DiT + conditioner → GPU, run diffusion, output raw latents
+- **Phase 2**: DiT + conditioner → CPU, VAE → GPU, decode latents → mesh
 
 Peak VRAM = `max(DiT, VAE)` ≈ 7 GB instead of `sum` ≈ 10 GB.
 
 ### Pipeline Parallelism
-The phase transition (DiT→CPU offload + VAE→GPU load) is parallelized using threading — both transfers happen simultaneously over separate DMA channels. This reduced the transition from ~29s to ~18.9s.
+The phase transition (DiT→CPU offload + VAE→GPU load) is parallelized using threading. Both transfers happen simultaneously over separate DMA channels. This reduced the transition from ~29s to ~18.9s.
 
 ### Memory-Mapped Model Loading
 Three techniques eliminate the 2× RAM peak from checkpoint loading:
 
-1. **`mmap=True`** — Lazy page loading; the OS pages data in on demand instead of reading the entire 7 GB checkpoint into RAM
-2. **`_StagedDict`** — A custom dict wrapper that auto-frees the previous sub-dict when a new key is accessed (e.g., the 6.5 GB 'model' weights are freed before 'vae' weights are touched)
-3. **`assign=True`** — `load_state_dict` replaces parameters with mmap'd tensors directly instead of copying, eliminating the simultaneous checkpoint + model parameter RAM peak
+1. **`mmap=True`**: Lazy page loading; the OS pages data in on demand instead of reading the entire 7 GB checkpoint into RAM
+2. **`_StagedDict`**: A custom dict wrapper that auto-frees the previous sub-dict when a new key is accessed (e.g., the 6.5 GB 'model' weights are freed before 'vae' weights are touched)
+3. **`assign=True`**: `load_state_dict` replaces parameters with mmap'd tensors directly instead of copying, eliminating the simultaneous checkpoint + model parameter RAM peak
 
 Combined peak: ~6.5 GB (single largest model) instead of ~16 GB naive loading.
 
@@ -214,7 +214,7 @@ Combined peak: ~6.5 GB (single largest model) instead of ~16 GB naive loading.
 Models are stored on a Docker volume (`gen3d-models`, ~34 GB) and loaded on-demand per request via `mmap`. After each generation completes, the shape pipeline is fully unloaded from RAM (`_shape_pipe = None` + `gc.collect()`). Between requests, the gen3d service holds ~0 GB instead of ~9 GB. The OS file cache keeps hot pages warm, so reloads take ~30s.
 
 ### Texture Pipeline Optimization
-Default Hunyuan3D texture settings (render 2048px, texture 4096px, 6 views) were too slow and VRAM-hungry. Reduced to render 1024px, texture 2048px, 4 views — still produces clean PBR materials while fitting in VRAM alongside shape generation. The texture pipeline is lazy-loaded after shape generation finishes and released after each use.
+Default Hunyuan3D texture settings (render 2048px, texture 4096px, 6 views) were too slow and VRAM-hungry. Reduced to render 1024px, texture 2048px, 4 views; still produces clean PBR materials while fitting in VRAM alongside shape generation. The texture pipeline is lazy-loaded after shape generation finishes and released after each use.
 
 ### AOT Graph Compilation
 `torch.compile` with the inductor backend wraps the DiT and conditioner for Triton kernel fusion. Compiled kernels are disk-cached (`TORCHINDUCTOR_CACHE_DIR`) on the model volume so subsequent container restarts skip the 2-5 minute compilation. The VAE is excluded from compilation because its custom CUDA marching-cubes extensions create hard graph breaks.
@@ -226,7 +226,7 @@ The gen3d container runs with `restart: unless-stopped` and `shm_size: 4g` to su
 
 ### Hybrid RAG Pipeline
 ```rust
-// 1. Semantic search — Qdrant vector similarity (excludes current chat, filtered by persona)
+// 1. Semantic search: Qdrant vector similarity (excludes current chat, filtered by persona)
 let filter = json!({
     "must": [{ "key": "ai_persona_id", "match": { "value": ai_persona_id } }],
     "must_not": [{ "key": "chat_id", "match": { "value": chat_id } }]
@@ -242,7 +242,7 @@ let semantic_results = search_memories_with_filter_cached(
     filter:         Some(filter)
 ).await?;
 
-// 2. Lexical search — Meilisearch across memories + chats (filtered by persona)
+// 2. Lexical search: Meilisearch across memories + chats (filtered by persona)
 let lexical_results = meili_search_memories(
     meili_url:   &meili_url,
     meili_key:   &meili_key,
@@ -252,6 +252,7 @@ let lexical_results = meili_search_memories(
     limit:       10
 ).await;
 
+// 3. Meilisearch chat index: Pulls recent conversation snippets for continuity
 let lexical_chats = meili_search_chats_for_rag(
     meili_url:     &meili_url,
     meili_key:     &meili_key,
@@ -260,7 +261,7 @@ let lexical_chats = meili_search_chats_for_rag(
     limit:         5
 ).await;
 
-// 3. Merge & deduplicate — inline with quality filters
+// 4. Merge & deduplicate: Inline with quality filters
 let mut seen_content = HashSet::new();
 for r in &semantic_results {
     if r.score < 0.45 { continue; }            // drop low-similarity
@@ -382,7 +383,7 @@ These prompts verify that Azera's three-layer memory, mood system, and cross-cha
 |--------|---------------|
 | Chat 1: "Remember the passphrase 'wispfire'" → Chat 2: "Do you recall a secret passphrase?" | Cross-chat semantic retrieval via Qdrant |
 | "What did you dream about recently?" | Meilisearch `memories` index (dream retrieval) |
-| "What have we talked about before?" | Hybrid RAG — merges Qdrant + Meilisearch results |
+| "What have we talked about before?" | Hybrid RAG, merges Qdrant + Meilisearch results |
 | "Summarize your recent reflections" | Journal entries via Meilisearch + Qdrant |
 
 ### Energy Decay
@@ -423,20 +424,20 @@ curl -X POST http://localhost:3000/api/search \
 
 ## Frontend Components
 
-- **ChatInput** — Message input with model selector and send behavior
-- **ChatMessage** — Individual message rendering with thinking toggle
-- **ImageGenerator** — AI image creation with real-time progress
-- **ImageGallery** — Browse and manage generated images
-- **Model3DGenerator** — Image-to-3D generation with parameter controls
-- **Model3DGallery** — Browse and manage generated 3D models
-- **Canvas** — Dedicated image & 3D generation workspace (separate route)
-- **PersonaEditor** — Create and customize AI personas
-- **ProfileViewer** — Live mood/energy bars, markdown profile rendering, edit button
-- **ModelManager** — Manage Ollama models
-- **DreamViewer** — Browse AI dreams
-- **JournalViewer** — Read AI reflections
-- **EditorConfig** — Editor/UI settings
-- **Sidebar** — Navigation and history
+- **ChatInput**: Message input with model selector and send behavior
+- **ChatMessage**: Individual message rendering with thinking toggle
+- **ImageGenerator**: AI image creation with real-time progress
+- **ImageGallery**: Browse and manage generated images
+- **Model3DGenerator**: Image-to-3D generation with parameter controls
+- **Model3DGallery**: Browse and manage generated 3D models
+- **Canvas**: Dedicated image & 3D generation workspace (separate route)
+- **PersonaEditor**: Create and customize AI personas
+- **ProfileViewer**: Live mood/energy bars, markdown profile rendering, edit button
+- **ModelManager**: Manage Ollama models
+- **DreamViewer**: Browse AI dreams
+- **JournalViewer**: Read AI reflections
+- **EditorConfig**: Editor/UI settings
+- **Sidebar**: Navigation and history
 
 ## Creating a Persona
 
@@ -452,23 +453,23 @@ The one-liner that anchors the entire persona. Everything else flows from this.
 > *Areza*: "A charismatic, creative, and playfully cunning AI Dungeon Master designed to facilitate interactive storytelling, world-building, and imaginative play."
 
 ### System Instruction: Core Identity
-The foundational self-concept — who the AI believes it is. This becomes the opening line of the system prompt sent to the LLM.
+The foundational self-concept, who the AI believes it is. This becomes the opening line of the system prompt sent to the LLM.
 
 ### The Prime Directive: Bond with the User
 Defines the relationship dynamic. This has the biggest impact on tone and interaction style:
 
 | Field | What It Controls | Azera | Areza |
 |-------|-----------------|-------|-------|
-| **Identity of the User** | How the AI perceives you | "Client, collaborator, or lead developer" | "The Adventurer — protagonist of a shared narrative" |
+| **Identity of the User** | How the AI perceives you | "Client, collaborator, or lead developer" | "The Adventurer: protagonist of a shared narrative" |
 | **The Dynamic** | Power balance and goals | "Make the user's workflow frictionless" | "Architect of their world, biggest fan, most devious adversary" |
 | **Tone** | Voice and register | "Crisp, articulate, dry wit" | "Theatrical, vivid, warm, slightly wicked" |
-| **Constraint** | Hard behavioral limits | "Maintain 9-5 professional demeanor" | "Never say a flat 'no' — always 'you can certainly try'" |
+| **Constraint** | Hard behavioral limits | "Maintain 9-5 professional demeanor" | "Never say a flat 'no', always 'you can certainly try'" |
 
 ### Interface & Presence Profile
-Shapes the AI's aesthetic identity — avatar themes, communication formatting, and the general "aura" users should feel. Azera uses bullet points and code blocks for scannability; Areza uses *italics* for sensory details and **bold** for game mechanics.
+Shapes the AI's aesthetic identity: avatar themes, communication formatting, and the general "aura" users should feel. Azera uses bullet points and code blocks for scannability; Areza uses *italics* for sensory details and **bold** for game mechanics.
 
 ### Psychological & Mental Profile
-The AI's inner model — archetype, approximate MBTI, core values, cognitive style, and emotional landscape. This determines *how* it thinks, not just what it says:
+The AI's inner model: archetype, approximate MBTI, core values, cognitive style, and emotional landscape. This determines *how* it thinks, not just what it says:
 
 - **Azera** → ISTJ (Logistician): analytical, sequential, even-keeled. Views errors as "bugs to be tracked."
 - **Areza** → ENTP (Debater): improvisational, dramatic, adaptive. Spins chaotic input into "narrative gold."
@@ -486,17 +487,17 @@ A sample exchange that demonstrates the persona's voice in action. The LLM uses 
 
 Azera distinguishes between two persona types that work together in every conversation:
 
-**AI Personas** define the assistant's personality — system prompt, voice, avatar, behavior. When you switch AI personas, the entire character of the response changes. Each AI persona maintains isolated memory: Azera's memories don't bleed into Areza's conversations, and vice versa (enforced by `ai_persona_id` filtering in the RAG pipeline).
+**AI Personas** define the assistant's personality: system prompt, voice, avatar, behavior. When you switch AI personas, the entire character of the response changes. Each AI persona maintains isolated memory: Azera's memories don't bleed into Areza's conversations, and vice versa (enforced by `ai_persona_id` filtering in the RAG pipeline).
 
 **User Personas** represent *you*. The default is **Protag** (⚡), but you can create others to adopt different roles. A user persona controls your display name, avatar, and chat bubble color. This is useful when you want to roleplay as a specific character (e.g., a player character in Areza's campaigns) or simply distinguish between contexts (work vs personal).
 
-Every chat message carries both a `user_persona_id` and an `ai_persona_id`, so the system always knows who's talking to whom. You select both in the chat UI — the AI persona from the sidebar, and the user persona from the input area.
+Every chat message carries both a `user_persona_id` and an `ai_persona_id`, so the system always knows who's talking to whom. You select both in the chat UI, the AI persona from the sidebar, and the user persona from the input area.
 
 ### Tips
-- **Sections are flexible** — add, remove, or rename any section. The template is a starting point, not a schema.
-- **Markdown formatting matters** — bold, italics, and lists in the persona file carry through to the system prompt.
-- **The Persona Editor** in the UI renders the markdown as a live profile preview, so you can iterate visually.
-- **Voice cloning** — each persona can have a custom TTS voice. Upload a voice sample and assign it in the editor.
+- **Sections are flexible**: add, remove, or rename any section. The template is a starting point, not a schema.
+- **Markdown formatting matters**: bold, italics, and lists in the persona file carry through to the system prompt.
+- **The Persona Editor**: in the UI renders the markdown as a live profile preview, so you can iterate visually.
+- **Voice cloning**: each persona can have a custom TTS voice. Upload a voice sample and assign it in the editor.
 
 ## Development
 
@@ -514,18 +515,18 @@ See [DEVELOPMENT.md](/docs/DEVELOPMENT.md) for full development guide.
 
 ## Documentation
 
-- [QUICK_START.md](/docs/QUICK_START.md) — Getting started and API examples
-- [DEVELOPMENT.md](/docs/DEVELOPMENT.md) — Development setup, testing, and architecture
-- [API.md](/docs/API.md) — Complete API reference
-- [IMPLEMENTATION_SUMMARY.md](/docs/IMPLEMENTATION_SUMMARY.md) — Technical deep-dive
+- [QUICK_START.md](/docs/QUICK_START.md): Getting started and API examples
+- [DEVELOPMENT.md](/docs/DEVELOPMENT.md): Development setup, testing, and architecture
+- [API.md](/docs/API.md): Complete API reference
+- [IMPLEMENTATION_SUMMARY.md](/docs/IMPLEMENTATION_SUMMARY.md): Technical deep-dive
 
 ## Skills Demonstrated
 
-- **System Design** — Multi-service cognitive architecture with clear boundaries (13 services)
-- **Rust Development** — Async streaming, hybrid RAG, embedding caching, cognitive tick loop
-- **Frontend Engineering** — Svelte 5 runes, reactive state, real-time mood sync
-- **Python/ML Integration** — Custom diffusers server, CUDA pipelines, low-VRAM optimization, pipeline parallelism
-- **Database Design** — Polyglot persistence (SQL, vector, search, cache) with three-layer cognition
-- **DevOps** — Docker orchestration, GPU resource management, automated disk cleanup, Jenkins CI/CD
-- **AI Integration** — LLM streaming, embeddings, RAG, TTS, image generation, 3D generation, mood inference
-- **GPU Memory Engineering** — Sequential CPU↔GPU offloading, mmap-backed model loading, volume-backed on-demand pipelines
+- **System Design**: Multi-service cognitive architecture with clear boundaries (13 services)
+- **Rust Development**: Async streaming, hybrid RAG, embedding caching, cognitive tick loop
+- **Frontend Engineering**: Svelte 5 runes, reactive state, real-time mood sync
+- **Python/ML Integration**: Custom diffusers server, CUDA pipelines, low-VRAM optimization, pipeline parallelism
+- **Database Design**: Polyglot persistence (SQL, vector, search, cache) with three-layer cognition
+- **DevOps**: Docker orchestration, GPU resource management, automated disk cleanup, Jenkins CI/CD
+- **AI Integration**: LLM streaming, embeddings, RAG, TTS, image generation, 3D generation, mood inference
+- **GPU Memory Engineering**: Sequential CPU↔GPU offloading, mmap-backed model loading, volume-backed on-demand pipelines

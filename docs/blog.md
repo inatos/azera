@@ -1,6 +1,6 @@
 # Building Azera: An AI That Remembers, Dreams, and Reflects
 
-Most chat applications treat conversations as isolated events. You type, the AI responds, and everything disappears into the void. I wanted to build something different — an AI that actually *remembers*, that forms emotional context across conversations, and that does something interesting when you're not talking to it.
+Most chat applications treat conversations as isolated events. You type, the AI responds, and everything disappears into the void. I wanted to build something different, an AI that actually *remembers*, that forms emotional context across conversations, and that does something interesting when you're not talking to it.
 
 Azera is the result: an emotionally intelligent chat application with a three-layer cognitive architecture, autonomous mental states, AI image generation, voice synthesis, and a persona system that lets you define entirely different AI characters through markdown.
 
@@ -12,7 +12,7 @@ This post walks through why I built it, how the architecture works, and the inte
 
 Every major chat interface today has the same fundamental limitation: context resets. You can have a deeply personal conversation with an AI, close the tab, and it's gone. Open a new chat and you're talking to a stranger again.
 
-This isn't just annoying — it's architecturally lazy. We have vector databases, semantic search, and embedding models. There's no reason an AI can't maintain genuine continuity across conversations, recall what you discussed last week, and build an evolving understanding of the relationship over time.
+This isn't just annoying, it's architecturally lazy. We have vector databases, semantic search, and embedding models. There's no reason an AI can't maintain genuine continuity across conversations, recall what you discussed last week, and build an evolving understanding of the relationship over time.
 
 That was the starting question: *what would it look like if an AI actually remembered everything?*
 
@@ -20,15 +20,15 @@ The answer turned out to involve a lot more than a vector database.
 
 ## Three Layers of Memory
 
-The core insight was that human memory isn't one system — it's at least three. You have long-term associations (semantic memory), the ability to search for specific facts (lexical memory), and a short-term attention buffer (working memory). Azera mirrors this with three database services:
+The core insight was that human memory isn't one system, it's at least three. You have long-term associations (semantic memory), the ability to search for specific facts (lexical memory), and a short-term attention buffer (working memory). Azera mirrors this with three database services:
 
-- **Semantic Memory (Qdrant)** stores vector embeddings of every conversation. When you send a message, the system generates an embedding and searches for the top 10 most similar memories across all past chats. This is how Azera can recall a passphrase you mentioned three days ago in a completely different conversation — the *meaning* matches even if the words don't.
+- **Semantic Memory (Qdrant)** stores vector embeddings of every conversation. When you send a message, the system generates an embedding and searches for the top 10 most similar memories across all past chats. This is how Azera can recall a passphrase you mentioned three days ago in a completely different conversation. I.e. the *meaning* matches even if the words don't.
 
-- **Lexical Memory (Meilisearch)** provides structured, word-based retrieval across two indexes: `chats` and `memories` (which includes dreams, journal entries, and facts). This catches things that semantic search misses — proper nouns, specific dates, exact phrases. When you ask "what did you dream about recently?", it's Meilisearch that pulls the dream entries.
+- **Lexical Memory (Meilisearch)** provides structured, word-based retrieval across two indexes: `chats` and `memories` (which includes dreams, journal entries, and facts). This catches things that semantic search misses: proper nouns, specific dates, exact phrases. When you ask "what did you dream about recently?", it's Meilisearch that pulls the dream entries.
 
 - **Working Memory (DragonflyDB)** is the attention buffer. It stores session context (24-hour TTL), an embedding cache (7-day TTL), and the current mental state. This is how Azera knows what you were *just* talking about without needing to hit the heavier databases.
 
-Every message triggers a hybrid RAG pipeline that queries all three layers, deduplicates the results, and injects the combined context into the LLM prompt. The pipeline applies quality filters — dropping anything below 0.45 similarity, skipping memories less than 60 seconds old (to avoid echo), and truncating snippets to 400 characters.
+Every message triggers a hybrid RAG pipeline that queries all three layers, deduplicates the results, and injects the combined context into the LLM prompt. The pipeline applies quality filters, dropping anything below 0.45 similarity, skipping memories less than 60 seconds old (to avoid echo), and truncating snippets to 400 characters.
 
 ### Why Not Just Use One Database?
 
@@ -37,7 +37,7 @@ I tried. A single vector database gives you great semantic recall but terrible e
 The three-layer approach means each service does what it's best at:
 
 ```rust
-// 1. Qdrant — what's semantically relevant?
+// 1. Qdrant: What's semantically relevant?
 let semantic_results = search_memories_with_filter_cached(
     vector_service: &vector_service,
     ollama_host:    &ollama_host,
@@ -48,7 +48,7 @@ let semantic_results = search_memories_with_filter_cached(
     filter:         Some(filter)
 ).await?;
 
-// 2. Meilisearch — what matches the words?
+// 2. Meilisearch: What matches the words?
 let lexical_results = meili_search_memories(
     meili_url:   &meili_url,
     meili_key:   &meili_key,
@@ -58,6 +58,7 @@ let lexical_results = meili_search_memories(
     limit:       10
 ).await;
 
+// 3. Meilisearch chat index: Pulls recent conversation snippets for continuity
 let lexical_chats = meili_search_chats_for_rag(
     meili_url:     &meili_url,
     meili_key:     &meili_key,
@@ -66,7 +67,7 @@ let lexical_chats = meili_search_chats_for_rag(
     limit:         5
 ).await;
 
-// 3. Merge, dedup, inject as context
+// 4. Merge, dedup, inject as context
 let mut seen_content = HashSet::new();
 for r in &semantic_results {
     if r.score < 0.45 { continue; }
@@ -80,12 +81,12 @@ The deduplication step is important because both systems will often return overl
 
 The most novel part of Azera's architecture is that it does things when you're *not* talking to it. The backend runs a 1 Hz tick loop that continuously processes the agent's mental state:
 
-1. **Perception** — Syncs DragonflyDB state into the agent, applies idle drift (energy slowly recovers, mood drifts toward neutral, focus decays)
-2. **Emotional Processing** — Updates mood and energy based on recent interactions
-3. **Dream Processing** — When energy drops low enough, the dreaming system kicks in and generates creative consolidations of recent conversations
-4. **Reflection Processing** — At high clarity, the system writes journal entries with genuine insights about past interactions
+1. **Perception**: Syncs DragonflyDB state into the agent, applies idle drift (energy slowly recovers, mood drifts toward neutral, focus decays)
+2. **Emotional Processing**: Updates mood and energy based on recent interactions
+3. **Dream Processing**: When energy drops low enough, the dreaming system kicks in and generates creative consolidations of recent conversations
+4. **Reflection Processing**: At high clarity, the system writes journal entries with genuine insights about past interactions
 
-Dreams and journal entries are dual-written to both Qdrant and Meilisearch, so they become part of the memory system. This means Azera can reference its own dreams in conversation — "I dreamt about our conversation on consciousness last night" — and it's not a parlor trick. The dream actually exists in the memory store and was generated from real conversation embeddings.
+Dreams and journal entries are dual-written to both Qdrant and Meilisearch, so they become part of the memory system. This means Azera can reference its own dreams in conversation; e.g. "I dreamt about our conversation on consciousness last night", and it's not a parlor trick. The dream actually exists in the memory store and was generated from real conversation embeddings.
 
 ## Mood Is Not a Gimmick
 
@@ -130,17 +131,17 @@ The persona isolation was particularly tricky. Azera (the professional coder) an
 
 ## The Persona System
 
-Instead of hardcoding personalities, Azera uses markdown files as persona definitions. Each persona is essentially a structured prompt that the system feeds to the LLM — but broken into meaningful sections that shape different dimensions of behavior:
+Instead of hardcoding personalities, Azera uses markdown files as persona definitions. Each persona is essentially a structured prompt that the system feeds to the LLM, but broken into meaningful sections that shape different dimensions of behavior:
 
-- **Intent** — The one-line purpose statement
-- **Core Identity** — Who the AI believes it is
-- **Prime Directive** — The relationship dynamic (how it perceives the user, tone, constraints)
-- **Psychological Profile** — Archetype, MBTI, cognitive style, emotional landscape
-- **Task Behaviors** — Context-dependent overrides (how it acts when coding vs storytelling vs troubleshooting)
+- **Intent**: The one-line purpose statement
+- **Core Identity**: Who the AI believes it is
+- **Prime Directive**: The relationship dynamic (how it perceives the user, tone, constraints)
+- **Psychological Profile**: Archetype, MBTI, cognitive style, emotional landscape
+- **Task Behaviors**: Context-dependent overrides (how it acts when coding vs storytelling vs troubleshooting)
 
-The two built-in personas demonstrate the range. Azera is an ISTJ Logistician — analytical, sequential, even-keeled. It uses bullet points, code blocks, and the BLUF method. Areza is an ENTP Debater — improvisational, theatrical, dramatic. It uses *italics* for sensory details and **bold** for game mechanics.
+The two built-in personas demonstrate the range. Azera is an ISTJ `Logistician`: analytical, sequential, even-keeled. It uses bullet points, code blocks, and the BLUF method. Areza is an ENTP `Debater`: improvisational, theatrical, dramatic. It uses *italics* for sensory details and **bold** for game mechanics.
 
-There are also *user* personas. The default is Protag, but you can create others to adopt different roles in different contexts. Every message carries both a `user_persona_id` and an `ai_persona_id`, so the system always knows who's talking to whom. This enables proper roleplay scenarios — you can be a different character in Areza's dungeon while being yourself in Azera's dev sessions.
+There are also *user* personas. The default is Protag, but you can create others to adopt different roles in different contexts. Every message carries both a `user_persona_id` and an `ai_persona_id`, so the system always knows who's talking to whom. This enables proper roleplay scenarios. E.g. you can be a different character in Areza's dungeon while being yourself in Azera's dev sessions.
 
 ## Embedding Cache: Making RAG Fast
 
@@ -159,7 +160,7 @@ Cache hits skip the Ollama round-trip entirely. Cache writes are fire-and-forget
 
 ## The Frontend: Svelte 5 Runes in Production
 
-The frontend uses Svelte 5 with the runes API — `$state`, `$derived`, `$effect`. The entire application state lives in a single `AppState` class:
+The frontend uses Svelte 5 with the runes API: `$state`, `$derived`, `$effect`. The entire application state lives in a single `AppState` class:
 
 ```typescript
 export class AppState {
@@ -173,43 +174,41 @@ export class AppState {
 }
 ```
 
-The mood and energy values update in real-time via the SSE `Done` event, driving live animated bars in the profile viewer. The streaming chat uses Server-Sent Events with typed event discrimination — `thinking_start`, `thinking`, `thinking_end`, `content`, `done`, `error` — so the UI can render AI reasoning blocks separately from the actual response.
+The mood and energy values update in real-time via the SSE (Server-Sent Events) `Done` event, driving live animated bars in the profile viewer. The streaming chat uses SSE with typed event discrimination: `thinking_start`, `thinking`, `thinking_end`, `content`, `done`, `error`, so the UI can render AI reasoning blocks separately from the actual response.
 
 ## Image Generation
 
-Azera includes a dedicated image generation pipeline powered by Animagine XL 3.1 (via HuggingFace Diffusers). It runs as a separate Python/CUDA sidecar with a custom FastAPI server. The interesting part is the real-time progress tracking — the backend streams SSE events for each diffusion step, so the UI shows a live progress bar and step count during generation.
+Azera includes a dedicated image generation pipeline powered by Animagine XL 3.1 (via HuggingFace Diffusers). It runs as a separate Python/CUDA sidecar with a custom FastAPI server. The interesting part is the real-time progress tracking; the backend streams SSE events for each diffusion step, so the UI shows a live progress bar and step count during generation.
 
-There's also a Canvas page — a dedicated workspace for image generation that's separate from the chat interface. Generated images are stored on disk and served via the API, with a gallery view for browsing and managing them.
+There's also a Canvas page, a dedicated workspace for image generation that's separate from the chat interface. Generated images are stored on disk and served via the API, with a gallery view for browsing and managing them.
 
 The LLM can even trigger image generation from within a chat conversation by emitting a special `[IMAGE_GEN: prompt="...", name="..."]` tag in its response. This gets parsed server-side and fires off an async generation task.
 
 ## 3D Model Generation
 
-Building on the image generation pipeline, Azera supports image-to-3D generation using Tencent's Hunyuan3D 2.1. It follows the same sidecar architecture — a separate Python/CUDA container running a FastAPI server — but the pipeline is substantially more complex: shape generation via a 3.3B-parameter DiT flow-matching model, followed by PBR texture painting across multiple views.
+Building on the image generation pipeline, Azera supports image-to-3D generation using Tencent's Hunyuan3D 2.1. It follows the same sidecar architecture: a separate Python/CUDA container running a FastAPI server, but the pipeline is substantially more complex: shape generation via a 3.3B-parameter DiT flow-matching model, followed by PBR texture painting across multiple views.
 
-Hunyuan3D is image-conditioned only — there's no native text-to-3D support. When a user provides only a text prompt, the gen3d server first calls the imagegen service to generate a reference image, then feeds that into the 3D pipeline. The UI reflects this by requiring a reference image upload for Generate-3D.
+The progress tracking works the same way as image generation: SSE events stream through the Rust backend, so the UI shows real-time progress for both the shape and texture stages. Output files (GLB/OBJ) are stored with JSON metadata sidecars and served through the API.
 
-The progress tracking works the same way as image generation: SSE events stream through the Rust backend, so the UI shows real-time progress for both the shape and texture stages. Output files (GLB) are stored with JSON metadata sidecars and served through the API.
-
-The Canvas page has four tabs — Generate-2D, Gallery-2D, Generate-3D, and Gallery-3D — with tab persistence via URL hash so refreshing preserves your position. The 3D gallery uses Google's `<model-viewer>` web component for interactive in-browser preview with auto-rotate, camera controls, and shadow rendering. The gallery filters to GLB/glTF formats only, since model-viewer can't handle raw OBJ files.
+The Canvas page has four tabs: Generate-2D, Gallery-2D, Generate-3D, and Gallery-3D. Each with tab persistence via URL hash so refreshing preserves your position. The 3D gallery uses Google's `<model-viewer>` web component for interactive in-browser preview with auto-rotate, camera controls, and shadow rendering. The gallery filters to GLB/glTF formats only, since model-viewer can't handle raw OBJ files.
 
 ## Fitting a 3.3B Model in 16 GB VRAM
 
-The most interesting engineering challenge was making Hunyuan3D 2.1 run on a laptop GPU. The model nominally requires 24+ GB of system RAM and 10+ GB of VRAM — my RTX 3080 Ti Laptop has 16 GB VRAM and shares 32 GB system RAM with WSL2 (capped at 24 GB via `.wslconfig`). And the 3D pipeline needs to coexist with image generation, voice synthesis, and seven other Docker containers.
+The most interesting engineering challenge was making Hunyuan3D 2.1 run on a laptop GPU. The model nominally requires 24+ GB of system RAM and 10+ GB of VRAM. However, my RTX 3080 Ti Laptop only has 16 GB VRAM and shares 32 GB system RAM with WSL2 (capped at 24 GB via `.wslconfig`). And the 3D pipeline needs to coexist with image generation, voice synthesis, and seven other Docker containers.
 
 ### The Memory Problem
 
 Naive loading of the Hunyuan3D checkpoint works like this:
 1. `torch.load("checkpoint.ckpt")` reads ~7 GB into RAM
-2. `model.load_state_dict(ckpt['model'])` copies 6.5 GB (DiT) — now 13.5 GB in RAM
-3. `vae.load_state_dict(ckpt['vae'])` copies 1.5 GB — now 15 GB in RAM
+2. `model.load_state_dict(ckpt['model'])` copies 6.5 GB (DiT)  now 13.5 GB in RAM
+3. `vae.load_state_dict(ckpt['vae'])` copies 1.5 GB → now 15 GB in RAM
 4. Loading all three components to GPU simultaneously needs ~10 GB VRAM
 
 On a system where WSL2 is already using 12+ GB for other services, this either OOM-kills the container or the entire VM.
 
 ### Three Layers of Memory Optimization
 
-**Layer 1: Memory-mapped loading.** I monkey-patched `torch.load` to inject `mmap=True`, which lazy-loads the checkpoint — the OS pages data in on demand instead of reading the entire 7 GB into RAM. Then I created `_StagedDict`, a dict wrapper that auto-frees the previous sub-dict when a new key is accessed. When PyTorch loads the 'vae' weights, the 6.5 GB 'model' weights are automatically freed first. Finally, `assign=True` on `load_state_dict` replaces model parameters with the mmap'd tensors directly instead of copying. Combined peak: ~6.5 GB instead of ~16 GB.
+**Layer 1: Memory-mapped loading.** I monkey-patched `torch.load` to inject `mmap=True`, which lazy-loads the checkpoint, the OS pages data in on demand instead of reading the entire 7 GB into RAM. Then I created `_StagedDict`, a dict wrapper that auto-frees the previous sub-dict when a new key is accessed. When PyTorch loads the 'vae' weights, the 6.5 GB 'model' weights are automatically freed first. Finally, `assign=True` on `load_state_dict` replaces model parameters with the mmap'd tensors directly instead of copying. Combined peak: ~6.5 GB instead of ~16 GB.
 
 ```python
 class _StagedDict(dict):
@@ -233,7 +232,7 @@ class _StagedDict(dict):
 
 Peak VRAM = max(DiT, VAE) ≈ 7 GB instead of sum ≈ 10 GB.
 
-The phase transition originally took ~29 seconds (sequential CPU↔GPU transfers). I parallelized it with `threading.Thread` — offloading DiT→CPU in a background thread while simultaneously loading VAE→GPU on the main thread. Both use separate DMA channels so they genuinely overlap. This brought the transition down to ~19 seconds:
+The phase transition originally took ~29 seconds (sequential CPU↔GPU transfers). I parallelized it with `threading.Thread`, offloading DiT→CPU in a background thread while simultaneously loading VAE→GPU on the main thread. Both use separate DMA channels so they genuinely overlap. This brought the transition down to ~19 seconds:
 
 ```python
 def _offload_dit_conditioner():
@@ -254,7 +253,7 @@ The default Hunyuan3D texture settings (render 2048px, texture 4096px, 6 views) 
 
 ### Compilation Caching
 
-`torch.compile` with the inductor backend wraps the DiT and conditioner for Triton kernel fusion, but the first compilation takes 2-5 minutes. The compiled kernels are disk-cached on the model volume (`TORCHINDUCTOR_CACHE_DIR=/models/torch_cache`), so subsequent container restarts are fast. The VAE is excluded from compilation — its custom CUDA marching-cubes extensions create hard graph breaks, and single-shot execution gives minimal benefit.
+`torch.compile` with the inductor backend wraps the DiT and conditioner for Triton kernel fusion, but the first compilation takes 2-5 minutes. The compiled kernels are disk-cached on the model volume (`TORCHINDUCTOR_CACHE_DIR=/models/torch_cache`), so subsequent container restarts are fast. The VAE is excluded from compilation, its custom CUDA marching-cubes extensions create hard graph breaks and single-shot execution gives minimal benefit.
 
 ### Recovery
 
@@ -284,17 +283,17 @@ Despite the complexity, getting started is just `docker compose up -d`. The olla
 
 ## What I Learned
 
-**Polyglot persistence is worth the complexity.** Using four different databases (CockroachDB, DragonflyDB, Qdrant, Meilisearch) sounds like over-engineering, but each one is genuinely the best tool for its job. The alternative — cramming everything into Postgres with pgvector — would have been simpler to deploy, but worse at every individual task.
+**Polyglot persistence is worth the complexity.** Using four different databases (CockroachDB, DragonflyDB, Qdrant, Meilisearch) sounds like over-engineering, but each one is genuinely the best tool for its job. The alternative, cramming everything into Postgres with pgvector would have been simpler to deploy, but worse at every individual task.
 
-**Mood inference is cheap and surprisingly effective.** A one-shot classification call with `temperature: 0.1` and `num_predict: 10` adds maybe 200ms but creates a persistent emotional thread that makes the AI feel alive. The key is propagating it through the full system — cache, agent state, frontend, and back into future context.
+**Mood inference is cheap and surprisingly effective.** A one-shot classification call with `temperature: 0.1` and `num_predict: 10` adds maybe 200ms but creates a persistent emotional thread that makes the AI feel alive. The key is propagating it through the full system: cache, agent state, frontend, and back into future context.
 
 **Cross-chat isolation is a correctness problem, not a feature.** I initially treated memory isolation as a nice-to-have. Then I watched one persona's conversation details leak into another and realized it's a hard requirement. Every query path needs explicit persona and chat filters or the system becomes untrustworthy.
 
-**The persona system exceeded my expectations.** I thought of it as a simple system prompt swap, but the structured markdown format — with separate sections for psychology, task behaviors, quirks, and relationship dynamics — produces meaningfully different AI personalities. Azera and Areza don't just talk differently; they *think* differently about the same problems.
+**The persona system exceeded my expectations.** I thought of it as a simple system prompt swap, but the structured markdown format, with separate sections for psychology, task behaviors, quirks, and relationship dynamics, produces meaningfully different AI personalities. Azera and Areza don't just talk differently; they *think* differently about the same problems.
 
-**VRAM is a budget, not a limit.** Running a 3.3B-parameter 3D generation model on a 16 GB laptop GPU alongside image generation, voice synthesis, and seven other services seemed impossible at first. The trick is treating VRAM like a time-shared resource: sequential CPU↔GPU offloading, pipeline parallelism for phase transitions, mmap-backed loading to eliminate RAM peaks, and aggressive unloading between requests. The model doesn't need to live in memory — it just needs to be there when you need it. Volume-backed mmap loading with OS page cache handles the rest.
+**VRAM is a budget, not a limit.** Running a 3.3B-parameter 3D generation model on a 16 GB laptop GPU alongside image generation, voice synthesis, and seven other services seemed impossible at first. The trick is treating VRAM like a time-shared resource: sequential CPU↔GPU offloading, pipeline parallelism for phase transitions, mmap-backed loading to eliminate RAM peaks, and aggressive unloading between requests. The model doesn't need to live in memory, it just needs to be there when you need it. Volume-backed mmap loading with OS page cache handles the rest.
 
-**Docker disk is a slow leak.** Dangling images, orphaned build cache, and multi-stage build layers accumulate silently until you're 100+ GB deep. The WSL2 VHDX virtual disk *never* auto-shrinks. An automated docker-gc sidecar that prunes daily is cheap insurance — and you'll still need to compact the VHDX periodically.
+**Docker disk is a slow leak.** Dangling images, orphaned build cache, and multi-stage build layers accumulate silently until you're 100+ GB deep. The WSL2 VHDX virtual disk *never* auto-shrinks. An automated docker-gc sidecar that prunes daily is cheap insurance and you'll still need to compact the VHDX periodically.
 
 ---
 
