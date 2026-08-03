@@ -1,8 +1,9 @@
 {
   "models": [
+    "gemma4:26b",
+    "nomic-embed-text:latest",
     "deepseek-r1:8b",
-    "llama3.2:latest",
-    "nomic-embed-text:latest"
+    "llama3.2:latest"
   ],
-  "last_updated": "2026-02-23T15:16:41.524269650Z"
+  "last_updated": "2026-04-09T18:25:18.208868767Z"
 }
